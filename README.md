@@ -140,14 +140,6 @@ Key optimizations:
 - **Rayon parallelism** — multi-core batch file processing and parallel STFT
 - **Zero-copy numpy interop** — PyO3 + rust-numpy passes arrays without copying
 
-## Relationship to librosa
-
-canora is a clean-room Rust reimplementation inspired by [librosa](https://librosa.org/). No librosa source code was copied. The API design, default parameters, and algorithm choices follow librosa's conventions to enable drop-in compatibility.
-
-librosa is maintained by [Brian McFee](https://github.com/bmcfee) and contributors under the ISC license. If you don't need compiled performance, librosa remains an excellent choice with broader feature coverage and extensive documentation.
-
-See [ACKNOWLEDGMENTS.md](https://github.com/kkollsga/canora/blob/main/ACKNOWLEDGMENTS.md) for full attribution, academic references, and dependency credits.
-
 ## License
 
-MIT
+[MIT](LICENSE)
