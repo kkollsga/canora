@@ -1,0 +1,44 @@
+[package]
+name = "canora"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance audio analysis library — fast alternative to librosa for music information retrieval"
+license = "MIT"
+repository = "https://github.com/kkollsga/canora"
+readme = "../README.md"
+keywords = ["audio", "music", "librosa", "mir", "stft"]
+categories = ["multimedia::audio", "science"]
+
+[dependencies]
+ndarray = { workspace = true }
+blas-src = { workspace = true }
+cblas-sys = { workspace = true }
+num-complex = { workspace = true }
+num-traits = { workspace = true }
+realfft = { workspace = true }
+rustfft = { workspace = true }
+rayon = { workspace = true }
+thiserror = { workspace = true }
+symphonia = { workspace = true }
+hound = { workspace = true }
+rubato = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "bench_utils"
+harness = false
+
+[[bench]]
+name = "bench_stft"
+harness = false
+
+[[bench]]
+name = "bench_sequence"
+harness = false
+
+[[bench]]
+name = "bench_cqt"
+harness = false

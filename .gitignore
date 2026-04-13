@@ -1,0 +1,56 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.whl
+*.so
+*.dylib
+*.pyd
+.venv/
+venv/
+env/
+
+# Secrets / Environment
+.env
+.env.*
+*.pem
+*.key
+*.secret
+credentials.json
+secrets.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Benchmarks (generated, not committed)
+benchmark_results.json
+benchmark_phases1_4.json
+
+# Claude / AI tooling (local only)
+.claude/
+
+# Coverage / profiling
+*.profraw
+*.profdata
+lcov.info
+htmlcov/
+flamegraph.svg
+perf.data
