@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use ndarray::Array1;
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 use sonara::core::constantq;
 use sonara::types::Float;

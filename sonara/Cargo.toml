@@ -45,3 +45,7 @@ harness = false
 [[bench]]
 name = "bench_cqt"
 harness = false
+
+[[bench]]
+name = "bench_analyze"
+harness = false

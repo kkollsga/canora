@@ -32,7 +32,7 @@ fn bench_viterbi(c: &mut Criterion) {
             -((i as Float - (j % n_states) as Float).abs() + 1.0).ln()
         });
         let log_trans = Array2::from_shape_fn((n_states, n_states), |(i, j)| {
-            if i == j { -0.1_f64.ln() } else { -(n_states as Float).ln() }
+            if i == j { -0.1_f32.ln() } else { -(n_states as Float).ln() }
         });
 
         group.bench_with_input(

@@ -11,6 +11,7 @@ pub mod error;
 pub mod feature;
 pub mod filters;
 pub mod onset;
+pub mod perceptual;
 pub mod segment;
 pub mod sequence;
 pub mod types;

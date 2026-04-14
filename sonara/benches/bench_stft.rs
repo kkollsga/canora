@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use ndarray::Array1;
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 use sonara::core::spectrum;
 use sonara::types::{Float, PadMode, WindowSpec};
@@ -92,7 +92,7 @@ fn bench_power_to_db(c: &mut Criterion) {
 
     for n_frames in [100, 500, 1000] {
         let spec = ndarray::Array2::from_shape_fn((1025, n_frames), |(i, j)| {
-            ((i + j) as f64 * 0.001).max(1e-10)
+            ((i + j) as f32 * 0.001).max(1e-10)
         });
 
         group.bench_with_input(
