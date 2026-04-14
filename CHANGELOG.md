@@ -2,6 +2,21 @@
 
 All notable changes to sonara are documented in this file.
 
+## [0.1.5] - 2026-04-14
+
+### Fixed
+
+- **Key detection C minor bias eliminated** — replaced mel-to-chroma approximation with proper chroma filterbank (`filters::chroma()`) in all analysis modes. C minor dropped from 39% to 5.5% on a 200-song test. The mel approximation had two flaws: frequencies below C0 defaulted to bin 0 (C), and mel bands were too wide to resolve semitones accurately.
+- **Spectral contrast accuracy** — now always uses proper log-spaced frequency bands on the magnitude spectrum instead of the mel sub-band approximation. Removed the separate `accurate` vs fast branch.
+- **Key profiles upgraded** — switched from Krumhansl (1990, classical-biased) to Temperley MIREX 2005 profiles (corpus-derived, better for popular music). Matches essentia's recommendation of corpus-derived profiles for non-classical repertoire.
+- **Energy scaling improved** — expanded RMS normalization range from 0.4 to 0.5, onset density ceiling from 8 to 10, reduced sigmoid steepness from 5.0 to 4.0 with shifted center (0.5 → 0.45). Energy floor raised from 0.007 to 0.14 on quiet music.
+- **Python test dtype** — fixed `test_api.py` and `benchmark_vs_librosa.py` to use `np.float32` arrays (was `np.float64`), matching the f32 Rust bindings.
+
+### Changed
+
+- **`accurate` flag simplified** — now only controls danceability (heuristic vs DFA). Chroma and spectral contrast are always computed with the accurate method since the cost is negligible.
+- Playlist mode stores full power spectrogram per frame for chroma filterbank projection and proper spectral contrast.
+
 ## [0.1.4] - 2026-04-14
 
 ### Performance

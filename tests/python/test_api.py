@@ -31,12 +31,12 @@ import sonara
 # ============================================================
 np.random.seed(42)
 sr = 22050
-y_1s = np.random.randn(sr).astype(np.float64)
-y_5s = np.random.randn(5 * sr).astype(np.float64)
+y_1s = np.random.randn(sr).astype(np.float32)
+y_5s = np.random.randn(5 * sr).astype(np.float32)
 # Pure sine for pitch tests
-y_sine = np.sin(2 * np.pi * 440.0 * np.arange(2 * sr) / sr).astype(np.float64)
+y_sine = np.sin(2 * np.pi * 440.0 * np.arange(2 * sr) / sr).astype(np.float32)
 # Click train for beat tests
-y_clicks = np.zeros(4 * sr, dtype=np.float64)
+y_clicks = np.zeros(4 * sr, dtype=np.float32)
 for i in range(0, 4 * sr, sr // 2):  # 120 BPM
     y_clicks[i:i+100] = np.sin(2 * np.pi * 1000 * np.arange(100) / sr)
 
@@ -53,8 +53,8 @@ test("stft(y)", lambda: sonara.stft(y_1s))
 test("stft with custom params", lambda: sonara.stft(y_1s, n_fft=4096, hop_length=256))
 
 D = sonara.stft(y_1s)
-test("amplitude_to_db(|D|)", lambda: sonara.amplitude_to_db(np.abs(D).astype(np.float64)))
-test("power_to_db(|D|^2)", lambda: sonara.power_to_db(np.abs(D).astype(np.float64)**2))
+test("amplitude_to_db(|D|)", lambda: sonara.amplitude_to_db(np.abs(D).astype(np.float32)))
+test("power_to_db(|D|^2)", lambda: sonara.power_to_db(np.abs(D).astype(np.float32)**2))
 test("istft(D)", lambda: sonara.istft(D))
 test("istft roundtrip length", lambda: (
     np.testing.assert_equal(len(sonara.istft(D, length=len(y_1s))), len(y_1s))
@@ -98,7 +98,7 @@ test("cqt(y)", lambda: sonara.cqt(y_1s, sr=22050))
 test("cqt(n_bins=36)", lambda: sonara.cqt(y_1s, sr=22050, n_bins=36))
 C = sonara.cqt(y_1s, sr=22050, n_bins=84)
 test("cqt shape", lambda: np.testing.assert_equal(C.shape[0], 84))
-test("amplitude_to_db(|cqt|)", lambda: sonara.amplitude_to_db(np.abs(C).astype(np.float64)))
+test("amplitude_to_db(|cqt|)", lambda: sonara.amplitude_to_db(np.abs(C).astype(np.float32)))
 test("vqt(y)", lambda: sonara.vqt(y_1s, sr=22050, n_bins=36))
 test("pseudo_cqt(y)", lambda: sonara.pseudo_cqt(y_1s, sr=22050, n_bins=36))
 test("hybrid_cqt(y)", lambda: sonara.hybrid_cqt(y_1s, sr=22050, n_bins=36))

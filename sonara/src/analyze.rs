@@ -152,15 +152,16 @@ impl AnalysisConfig {
 }
 
 /// Cached mel filterbank and sparse representation.
-struct MelCache {
+struct AnalysisCache {
     key: (u32, usize, usize), // (sr, n_fft, n_mels)
     sparse_mel: Vec<(usize, Vec<Float>)>,
     freqs: Array1<Float>,
     win_padded: Array1<Float>,
+    chroma_fb: FilterBank, // (12, n_bins) — proper chroma filterbank
 }
 
 thread_local! {
-    static MEL_CACHE: RefCell<Option<MelCache>> = const { RefCell::new(None) };
+    static ANALYSIS_CACHE: RefCell<Option<AnalysisCache>> = const { RefCell::new(None) };
 }
 
 /// Complete analysis result for a single track.
@@ -215,7 +216,8 @@ struct FrameResult {
     bandwidth: Float,
     rolloff: Float,
     flatness: Float,
-    power_col: Option<Vec<Float>>, // saved for full mode (chroma + contrast)
+    chroma_col: Vec<Float>,       // 12 chroma bins via proper filterbank
+    power_col: Option<Vec<Float>>, // saved for accurate spectral contrast
 }
 
 // ============================================================
@@ -269,11 +271,11 @@ fn analyze_signal_inner(
 
     let cache_key = (sr, n_fft, n_mels);
 
-    let (sparse_mel, freqs, win_padded) = MEL_CACHE.with(|cache| {
+    let (sparse_mel, freqs, win_padded, chroma_fb) = ANALYSIS_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if let Some(ref c) = *cache {
             if c.key == cache_key {
-                return (c.sparse_mel.clone(), c.freqs.clone(), c.win_padded.clone());
+                return (c.sparse_mel.clone(), c.freqs.clone(), c.win_padded.clone(), c.chroma_fb.clone());
             }
         }
 
@@ -291,15 +293,17 @@ fn analyze_signal_inner(
         let win = windows::get_window(&WindowSpec::Named("hann".into()), n_fft, true)
             .expect("hann window");
         let wp = utils::pad_center(win.view(), n_fft).expect("pad_center");
+        let cfb = filters::chroma(sr_f, n_fft, 12, 0.0);
 
-        *cache = Some(MelCache {
+        *cache = Some(AnalysisCache {
             key: cache_key,
             sparse_mel: sparse.clone(),
             freqs: f.clone(),
             win_padded: wp.clone(),
+            chroma_fb: cfb.clone(),
         });
 
-        (sparse, f, wp)
+        (sparse, f, wp, cfb)
     });
 
     let pad = n_fft / 2;
@@ -314,7 +318,8 @@ fn analyze_signal_inner(
 
     // ================================================================
     // SINGLE PASS: FFT → mel + centroid + rms + (extended features)
-    // In full mode, also saves the power spectrum for accurate chroma/contrast.
+    // Also computes chroma via proper filterbank and stores power spectrum
+    // for accurate spectral contrast when extended features are requested.
     // ================================================================
 
     let n_frames = 1 + (n - n_fft) / hop_length;
@@ -324,8 +329,8 @@ fn analyze_signal_inner(
     let mut bandwidths = if extended { Array1::<Float>::zeros(n_frames) } else { Array1::zeros(0) };
     let mut rolloffs = if extended { Array1::<Float>::zeros(n_frames) } else { Array1::zeros(0) };
     let mut flatnesses = if extended { Array1::<Float>::zeros(n_frames) } else { Array1::zeros(0) };
-    // Full mode: store power spectrogram for accurate chroma + contrast
-    let mut power_spec = if accurate {
+    let mut chroma_raw = if extended { Array2::<Float>::zeros((12, n_frames)) } else { Array2::zeros((0, 0)) };
+    let mut power_spec = if extended {
         Array2::<Float>::zeros((n_bins, n_frames))
     } else {
         Array2::zeros((0, 0))
@@ -407,9 +412,23 @@ fn analyze_signal_inner(
             sum
         }).collect();
 
-        let saved_power = if accurate { Some(power_col) } else { None };
+        // Chroma via proper filterbank (always, for all modes that need it)
+        let chroma_col = if extended {
+            let mut cc = vec![0.0_f32; 12];
+            for c in 0..12 {
+                let mut sum = 0.0;
+                for f in 0..n_bins { sum += chroma_fb[(c, f)] * power_col[f]; }
+                cc[c] = sum;
+            }
+            cc
+        } else {
+            vec![]
+        };
 
-        FrameResult { mel_col, centroid, rms, bandwidth, rolloff, flatness, power_col: saved_power }
+        // Save power spectrum for accurate spectral contrast
+        let saved_power = if extended { Some(power_col) } else { None };
+
+        FrameResult { mel_col, centroid, rms, bandwidth, rolloff, flatness, chroma_col, power_col: saved_power }
     };
 
     if n_frames >= PARALLEL_THRESHOLD {
@@ -425,6 +444,9 @@ fn analyze_signal_inner(
                 bandwidths[t] = fr.bandwidth;
                 rolloffs[t] = fr.rolloff;
                 flatnesses[t] = fr.flatness;
+                for (c, val) in fr.chroma_col.into_iter().enumerate() {
+                    chroma_raw[(c, t)] = val;
+                }
             }
             for (m, val) in fr.mel_col.into_iter().enumerate() {
                 mel_spec[(m, t)] = val;
@@ -444,6 +466,9 @@ fn analyze_signal_inner(
                 bandwidths[t] = fr.bandwidth;
                 rolloffs[t] = fr.rolloff;
                 flatnesses[t] = fr.flatness;
+                for (c, val) in fr.chroma_col.into_iter().enumerate() {
+                    chroma_raw[(c, t)] = val;
+                }
             }
             for (m, val) in fr.mel_col.into_iter().enumerate() {
                 mel_spec[(m, t)] = val;
@@ -528,64 +553,16 @@ fn analyze_signal_inner(
     };
 
     // ================================================================
-    // CHROMA: mel-approximated (extended) or accurate via filterbank (full)
+    // CHROMA: proper filterbank (always, computed in the fused loop)
+    // L-inf normalize per frame, then average across frames.
     // ================================================================
 
-    let chroma_mean = if accurate && n_frames > 0 {
-        // Full mode: use the proper chroma filterbank on the saved power spectrogram.
-        // This is the same method as the standalone chroma_stft function.
-        let chroma_fb = filters::chroma(sr_f, n_fft, 12, 0.0);
+    let chroma_mean = if extended && n_frames > 0 {
         let mut chroma_avg = vec![0.0_f32; 12];
-
         for t in 0..n_frames {
             let mut frame_chroma = [0.0_f32; 12];
-            for c in 0..12 {
-                let mut sum = 0.0;
-                for f in 0..n_bins.min(chroma_fb.ncols()) {
-                    sum += chroma_fb[(c, f)] * power_spec[(f, t)];
-                }
-                frame_chroma[c] = sum;
-            }
-            // L-inf normalize
-            let max_val = frame_chroma.iter().copied().fold(0.0_f32, Float::max);
-            if max_val > 0.0 {
-                for v in frame_chroma.iter_mut() { *v /= max_val; }
-            }
-            for (i, &v) in frame_chroma.iter().enumerate() {
-                chroma_avg[i] += v;
-            }
-        }
-        for v in chroma_avg.iter_mut() { *v /= n_frames as Float; }
-        Some(chroma_avg)
-    } else if extended && n_frames > 0 {
-        // Extended mode: fast mel-to-chroma approximation (±1 bin accuracy)
-        let mut chroma_avg = vec![0.0_f32; 12];
-        let c0: Float = 16.352;
-        let mel_hi = convert::hz_to_mel(sr_f / 2.0, false);
-        let mel_chroma_map: Vec<(usize, usize, Float)> = (0..n_mels)
-            .map(|m| {
-                let mel_center = mel_hi * (m as Float + 0.5) / n_mels as Float;
-                let freq = convert::mel_to_hz(mel_center, false);
-                if freq > c0 {
-                    let chroma_val = ((12.0 * (freq / c0).log2()) % 12.0 + 12.0) % 12.0;
-                    let bin_lo = chroma_val.floor() as usize % 12;
-                    let bin_hi = (bin_lo + 1) % 12;
-                    let frac = chroma_val - chroma_val.floor();
-                    (bin_lo, bin_hi, frac)
-                } else {
-                    (0, 0, 0.0)
-                }
-            })
-            .collect();
-
-        for t in 0..n_frames {
-            let mut frame_chroma = [0.0_f32; 12];
-            for m in 0..n_mels {
-                let (lo, hi, frac) = mel_chroma_map[m];
-                let energy = mel_spec[(m, t)];
-                frame_chroma[lo] += energy * (1.0 - frac);
-                frame_chroma[hi] += energy * frac;
-            }
+            for c in 0..12 { frame_chroma[c] = chroma_raw[(c, t)]; }
+            // L-inf normalize per frame (matches librosa's default)
             let max_val = frame_chroma.iter().copied().fold(0.0_f32, Float::max);
             if max_val > 0.0 {
                 for v in frame_chroma.iter_mut() { *v /= max_val; }
@@ -605,9 +582,8 @@ fn analyze_signal_inner(
     // ================================================================
 
     let n_contrast_bands = 6;
-    let spectral_contrast_mean = if accurate && n_frames > 0 {
-        // Full mode: proper log-spaced frequency bands on the magnitude spectrum
-        // (same algorithm as the standalone spectral_contrast function)
+    let spectral_contrast_mean = if extended && n_frames > 0 {
+        // Always use proper log-spaced frequency bands on the magnitude spectrum
         let fmin: Float = 200.0;
         let fmax = sr_f / 2.0;
         let quantile: Float = 0.02;
@@ -617,7 +593,6 @@ fn analyze_signal_inner(
             band_edges.push(fmin * (fmax / fmin).powf(i as Float / n_contrast_bands as Float));
         }
 
-        // Pre-compute bin ranges for each band
         let band_bins: Vec<(usize, usize)> = (0..n_contrast_bands)
             .map(|b| {
                 let lo = band_edges[b];
@@ -645,32 +620,6 @@ fn analyze_signal_inner(
             }
             let mean_mag: Float = (0..n_bins).map(|f| power_spec[(f, t)].sqrt()).sum::<Float>() / n_bins as Float;
             contrast_avg[n_contrast_bands] += mean_mag.max(1e-10).log10();
-        }
-        for v in contrast_avg.iter_mut() { *v /= n_frames as Float; }
-        Some(contrast_avg)
-    } else if extended && n_frames > 0 {
-        // Extended mode: approximate using mel sub-bands
-        let mut contrast_avg = vec![0.0_f32; n_contrast_bands + 1];
-        let bands_per_group = n_mels / n_contrast_bands;
-
-        for t in 0..n_frames {
-            for b in 0..n_contrast_bands {
-                let start_m = b * bands_per_group;
-                let end_m = ((b + 1) * bands_per_group).min(n_mels);
-                let mut band_vals: Vec<Float> = (start_m..end_m)
-                    .map(|m| mel_spec[(m, t)].max(1e-10))
-                    .collect();
-                band_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                let bn = band_vals.len();
-                if bn > 0 {
-                    let q = (bn as Float * 0.02) as usize;
-                    let valley = band_vals[q.min(bn - 1)];
-                    let peak = band_vals[(bn - 1).saturating_sub(q)];
-                    contrast_avg[b] += peak.log10() - valley.log10();
-                }
-            }
-            let mean_val: Float = (0..n_mels).map(|m| mel_spec[(m, t)]).sum::<Float>() / n_mels as Float;
-            contrast_avg[n_contrast_bands] += mean_val.max(1e-10).log10();
         }
         for v in contrast_avg.iter_mut() { *v /= n_frames as Float; }
         Some(contrast_avg)

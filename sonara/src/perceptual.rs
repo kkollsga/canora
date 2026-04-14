@@ -142,9 +142,12 @@ pub struct KeyResult {
 
 const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-// Krumhansl key profiles (Krumhansl 1990, widely used in MIR).
-const KRUMHANSL_MAJOR: [Float; 12] = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-const KRUMHANSL_MINOR: [Float; 12] = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+// Temperley MIREX 2005 key profiles — corpus-derived, better for popular music
+// than the original Krumhansl profiles. Essentia also recommends corpus-derived
+// profiles (edma/bgate) over Krumhansl for non-classical music.
+// Source: essentia key.cpp, D. Temperley "What's Key for Key?" (1999/2005)
+const KEY_PROFILE_MAJOR: [Float; 12] = [0.748, 0.060, 0.488, 0.082, 0.670, 0.460, 0.096, 0.715, 0.104, 0.366, 0.057, 0.400];
+const KEY_PROFILE_MINOR: [Float; 12] = [0.712, 0.084, 0.474, 0.618, 0.049, 0.460, 0.105, 0.747, 0.404, 0.067, 0.133, 0.330];
 
 // ============================================================
 // Tier 1: Energy
@@ -164,16 +167,16 @@ pub fn energy(
     spectral_bandwidth_mean: Float,
 ) -> Float {
     // Normalize each feature to [0, 1] via empirical music ranges
-    let norm_rms = (rms_mean / 0.4).clamp(0.0, 1.0);
+    let norm_rms = (rms_mean / 0.5).clamp(0.0, 1.0);              // compressed pop reaches 0.5+
     let norm_centroid = ((spectral_centroid_mean - 500.0) / 4500.0).clamp(0.0, 1.0);
-    let norm_onset = (onset_density / 8.0).clamp(0.0, 1.0);
+    let norm_onset = (onset_density / 10.0).clamp(0.0, 1.0);      // complex rhythms exceed 8
     let norm_bw = ((spectral_bandwidth_mean - 500.0) / 3500.0).clamp(0.0, 1.0);
 
     // Weighted combination
     let weighted = 0.35 * norm_rms + 0.25 * norm_centroid + 0.25 * norm_onset + 0.15 * norm_bw;
 
-    // Sigmoid to compress to smooth 0-1 curve
-    1.0 / (1.0 + (-5.0 * (weighted - 0.5)).exp())
+    // Gentler sigmoid centered lower — reaches 0.9+ on energetic music
+    1.0 / (1.0 + (-4.0 * (weighted - 0.45)).exp())
 }
 
 // ============================================================
@@ -364,7 +367,7 @@ pub fn detect_key(chroma: &[Float]) -> KeyResult {
     let mut second_best: Float = -2.0;
 
     for shift in 0..12 {
-        let corr_major = pearson_correlation(chroma, &KRUMHANSL_MAJOR, shift);
+        let corr_major = pearson_correlation(chroma, &KEY_PROFILE_MAJOR, shift);
         if corr_major > best_corr {
             second_best = best_corr;
             best_corr = corr_major;
@@ -374,7 +377,7 @@ pub fn detect_key(chroma: &[Float]) -> KeyResult {
             second_best = corr_major;
         }
 
-        let corr_minor = pearson_correlation(chroma, &KRUMHANSL_MINOR, shift);
+        let corr_minor = pearson_correlation(chroma, &KEY_PROFILE_MINOR, shift);
         if corr_minor > best_corr {
             second_best = best_corr;
             best_corr = corr_minor;
@@ -543,11 +546,13 @@ mod tests {
 
     #[test]
     fn test_key_detection_a440() {
-        // Strong A in chroma → should detect A
-        let mut chroma = [0.0_f32; 12];
+        // A major chord: A(9), C#(1), E(4) → should detect A
+        let mut chroma = [0.01_f32; 12];
         chroma[9] = 1.0; // A
+        chroma[1] = 0.6; // C#
+        chroma[4] = 0.5; // E
         let result = detect_key(&chroma);
-        assert_eq!(result.key, "A", "A-dominant chroma should detect key A, got {}", result.key);
+        assert_eq!(result.key, "A", "A major chroma should detect key A, got {}", result.key);
     }
 
     #[test]

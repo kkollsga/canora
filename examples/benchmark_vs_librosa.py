@@ -17,8 +17,8 @@ def bench(name, fn_c, fn_l, atol=1e-6, rtol=1e-5, check=True):
     acc = "—"
     if check and r_l is not None and r_c is not None:
         try:
-            rl = np.asarray(r_l, dtype=np.float64)
-            rc = np.asarray(r_c, dtype=np.float64)
+            rl = np.asarray(r_l, dtype=np.float32)
+            rc = np.asarray(r_c, dtype=np.float32)
             if rl.shape != rc.shape:
                 acc = f"SHAPE ({rc.shape} vs {rl.shape})"
             else:
@@ -26,7 +26,7 @@ def bench(name, fn_c, fn_l, atol=1e-6, rtol=1e-5, check=True):
                 np.testing.assert_allclose(rc, rl, atol=atol, rtol=rtol)
                 acc = f"PASS (d={max_diff:.1e})"
         except AssertionError:
-            max_diff = np.max(np.abs(np.asarray(r_c, dtype=np.float64) - np.asarray(r_l, dtype=np.float64)))
+            max_diff = np.max(np.abs(np.asarray(r_c, dtype=np.float32) - np.asarray(r_l, dtype=np.float32)))
             acc = f"FAIL (d={max_diff:.1e})"
         except Exception as e:
             acc = f"ERR: {type(e).__name__}"
@@ -60,8 +60,8 @@ if __name__ == "__main__":
     import librosa
 
     np.random.seed(42)
-    y1 = np.random.randn(22050).astype(np.float64)   # 1s
-    y5 = np.random.randn(110250).astype(np.float64)  # 5s
+    y1 = np.random.randn(22050).astype(np.float32)   # 1s
+    y5 = np.random.randn(110250).astype(np.float32)  # 5s
 
     print("="*90)
     print("  SONARA vs LIBROSA — Full Accuracy & Performance Report")
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     r2 = []
     r2.append(bench("mel filterbank (128 mels)",
         lambda: sonara.mel(sr=22050.0, n_fft=2048, n_mels=128),
-        lambda: librosa.filters.mel(sr=22050, n_fft=2048, n_mels=128).astype(np.float64),
+        lambda: librosa.filters.mel(sr=22050, n_fft=2048, n_mels=128).astype(np.float32),
         atol=1e-4))
     print_table("Phase 2: Filters", r2)
 
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         lambda: librosa.istft(librosa.stft(y1, n_fft=2048), length=22050),
         atol=1e-4))
 
-    S_pow = np.abs(librosa.stft(y1, n_fft=2048)).astype(np.float64)**2
+    S_pow = np.abs(librosa.stft(y1, n_fft=2048)).astype(np.float32)**2
     r3.append(bench("power_to_db",
         lambda: sonara.power_to_db(S_pow),
         lambda: librosa.power_to_db(S_pow),
@@ -121,41 +121,41 @@ if __name__ == "__main__":
     # melspectrogram
     r6.append(bench("melspectrogram 1s",
         lambda: sonara.melspectrogram(y=y1, sr=22050.0),
-        lambda: librosa.feature.melspectrogram(y=y1, sr=22050).astype(np.float64),
+        lambda: librosa.feature.melspectrogram(y=y1, sr=22050).astype(np.float32),
         atol=1e-2, rtol=0.1))
 
     r6.append(bench("melspectrogram 5s",
         lambda: sonara.melspectrogram(y=y5, sr=22050.0),
-        lambda: librosa.feature.melspectrogram(y=y5, sr=22050).astype(np.float64),
+        lambda: librosa.feature.melspectrogram(y=y5, sr=22050).astype(np.float32),
         check=False))
 
     # mfcc
     r6.append(bench("mfcc 1s (20 coeffs)",
         lambda: sonara.mfcc(y=y1, sr=22050.0, n_mfcc=20),
-        lambda: librosa.feature.mfcc(y=y1, sr=22050, n_mfcc=20).astype(np.float64),
+        lambda: librosa.feature.mfcc(y=y1, sr=22050, n_mfcc=20).astype(np.float32),
         atol=5.0, rtol=0.5))  # MFCC values can differ due to DCT/log implementation
 
     r6.append(bench("mfcc 5s (20 coeffs)",
         lambda: sonara.mfcc(y=y5, sr=22050.0, n_mfcc=20),
-        lambda: librosa.feature.mfcc(y=y5, sr=22050, n_mfcc=20).astype(np.float64),
+        lambda: librosa.feature.mfcc(y=y5, sr=22050, n_mfcc=20).astype(np.float32),
         check=False))
 
     # chroma
     r6.append(bench("chroma_stft 1s",
         lambda: sonara.chroma_stft(y=y1, sr=22050.0),
-        lambda: librosa.feature.chroma_stft(y=y1, sr=22050).astype(np.float64),
+        lambda: librosa.feature.chroma_stft(y=y1, sr=22050).astype(np.float32),
         atol=0.5, rtol=0.5))
 
     # spectral centroid
     r6.append(bench("spectral_centroid 1s",
         lambda: sonara.spectral_centroid(y=y1, sr=22050.0),
-        lambda: librosa.feature.spectral_centroid(y=y1, sr=22050).astype(np.float64),
+        lambda: librosa.feature.spectral_centroid(y=y1, sr=22050).astype(np.float32),
         atol=500.0, rtol=0.3))
 
     # rms
     r6.append(bench("rms 1s",
         lambda: sonara.rms(y=y1),
-        lambda: librosa.feature.rms(y=y1).astype(np.float64),
+        lambda: librosa.feature.rms(y=y1).astype(np.float32),
         atol=0.1, rtol=0.3))
 
     print_table("Phase 6: Spectral Features", r6)
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         ("librosa", "librosa: import+stft+mel+mfcc",
          "import numpy as np; y=np.random.randn(22050); librosa.stft(y); librosa.feature.melspectrogram(y=y, sr=22050); librosa.feature.mfcc(y=y, sr=22050)"),
         ("sonara", "sonara: import+stft+mel+mfcc",
-         "import numpy as np; y=np.random.randn(22050).astype(np.float64); sonara.stft(y); sonara.melspectrogram(y=y, sr=22050.0); sonara.mfcc(y=y, sr=22050.0)"),
+         "import numpy as np; y=np.random.randn(22050).astype(np.float32); sonara.stft(y); sonara.melspectrogram(y=y, sr=22050.0); sonara.mfcc(y=y, sr=22050.0)"),
     ]:
         script = f"import time; t0=time.perf_counter_ns(); import {mod_name}; t1=time.perf_counter_ns(); {code}; t2=time.perf_counter_ns(); print(f'{{(t1-t0)/1e6:.1f}},{{(t2-t1)/1e6:.1f}}')"
         times = []
