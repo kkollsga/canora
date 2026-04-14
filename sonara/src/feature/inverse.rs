@@ -1,6 +1,6 @@
 //! Feature inversion — reconstruct audio from spectral features.
 //!
-//! Mirrors librosa.feature.inverse — mel_to_stft, mel_to_audio, mfcc_to_mel, mfcc_to_audio.
+//! mel_to_stft, mel_to_audio, mfcc_to_mel, mfcc_to_audio.
 
 use std::f32::consts::PI;
 

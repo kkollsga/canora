@@ -1,9 +1,10 @@
 //! Onset detection.
 //!
-//! Mirrors librosa.onset — onset_detect, onset_strength, onset_strength_multi, onset_backtrack.
-//! Computes spectral flux from mel spectrogram to detect note onsets.
+//! Onset detection via spectral flux, energy, phase, and complex-domain methods.
+//! Includes onset_detect, onset_strength, onset_strength_multi, and onset_backtrack.
 
 use ndarray::{Array1, Array2, ArrayView1};
+use num_complex::Complex;
 
 use crate::core::spectrum;
 use crate::error::{SonaraError, Result};
@@ -46,7 +47,7 @@ pub fn onset_detect(
         return Ok(vec![]);
     };
 
-    // Peak picking with librosa-compatible defaults
+    // Peak picking with standard defaults
     let sr_f = sr as Float;
     let pre_max = ((0.03 * sr_f / hop_length as Float) as usize).max(1);
     let post_max = 1;
@@ -146,6 +147,171 @@ pub fn onset_strength_multi(
     Ok(padded)
 }
 
+// ============================================================
+// Advanced onset detection methods
+// ============================================================
+
+/// Onset detection method.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnsetMethod {
+    /// Spectral flux on mel spectrogram (default).
+    SpectralFlux,
+    /// Energy-based: half-wave rectified power spectrum difference.
+    Energy,
+    /// Phase deviation weighted by magnitude (good for tonal onsets).
+    Phase,
+    /// Complex-domain: deviation from predicted complex spectrum.
+    Complex,
+}
+
+impl OnsetMethod {
+    /// Parse from string (case-insensitive).
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "spectral_flux" | "spectralflux" | "flux" => Some(Self::SpectralFlux),
+            "energy" | "rms" => Some(Self::Energy),
+            "phase" => Some(Self::Phase),
+            "complex" => Some(Self::Complex),
+            _ => None,
+        }
+    }
+}
+
+/// Compute onset strength envelope using a specified method.
+///
+/// Unlike [`onset_strength`] (which always uses spectral flux on mel),
+/// this supports alternative methods: energy, phase deviation, and
+/// complex-domain detection.
+pub fn onset_strength_method(
+    y: ArrayView1<Float>,
+    sr: u32,
+    hop_length: usize,
+    method: OnsetMethod,
+) -> Result<Array1<Float>> {
+    match method {
+        OnsetMethod::SpectralFlux => onset_strength(y, sr, hop_length),
+        OnsetMethod::Energy => onset_strength_energy(y, sr, hop_length),
+        OnsetMethod::Phase => onset_strength_phase(y, sr, hop_length),
+        OnsetMethod::Complex => onset_strength_complex(y, sr, hop_length),
+    }
+}
+
+/// Energy-based onset strength: half-wave rectified power difference.
+fn onset_strength_energy(
+    y: ArrayView1<Float>,
+    _sr: u32,
+    hop_length: usize,
+) -> Result<Array1<Float>> {
+    let n_fft = 2048;
+    let window = WindowSpec::Named("hann".into());
+    let stft = spectrum::stft(y, n_fft, Some(hop_length), None, &window, true, PadMode::Constant)?;
+    let n_frames = stft.ncols();
+    let n_bins = stft.nrows();
+
+    if n_frames < 2 {
+        return Ok(Array1::zeros(n_frames));
+    }
+
+    // Pad to align with STFT centering
+    let pad_left = 1 + n_fft / (2 * hop_length);
+    let out_len = n_frames - 1 + pad_left;
+    let mut env = Array1::<Float>::zeros(out_len);
+
+    for t in 1..n_frames {
+        let mut diff_sum = 0.0;
+        for b in 0..n_bins {
+            let pow_cur = stft[(b, t)].norm_sqr();
+            let pow_prev = stft[(b, t - 1)].norm_sqr();
+            diff_sum += (pow_cur - pow_prev).max(0.0);
+        }
+        env[pad_left + t - 1] = diff_sum / n_bins as Float;
+    }
+
+    Ok(env)
+}
+
+/// Phase-based onset strength: phase deviation weighted by magnitude.
+fn onset_strength_phase(
+    y: ArrayView1<Float>,
+    _sr: u32,
+    hop_length: usize,
+) -> Result<Array1<Float>> {
+    let n_fft = 2048;
+    let window = WindowSpec::Named("hann".into());
+    let stft = spectrum::stft(y, n_fft, Some(hop_length), None, &window, true, PadMode::Constant)?;
+    let n_frames = stft.ncols();
+    let n_bins = stft.nrows();
+
+    if n_frames < 3 {
+        return Ok(Array1::zeros(n_frames));
+    }
+
+    let pad_left = 2 + n_fft / (2 * hop_length);
+    let out_len = n_frames - 2 + pad_left;
+    let mut env = Array1::<Float>::zeros(out_len);
+
+    // phase[t] - 2*phase[t-1] + phase[t-2], weighted by |S[t]|
+    for t in 2..n_frames {
+        let mut sum = 0.0;
+        for b in 0..n_bins {
+            let p0 = stft[(b, t - 2)].arg();
+            let p1 = stft[(b, t - 1)].arg();
+            let p2 = stft[(b, t)].arg();
+            let mag = stft[(b, t)].norm();
+            // Second-order phase deviation
+            let mut phase_dev = p2 - 2.0 * p1 + p0;
+            // Wrap to [-pi, pi]
+            phase_dev = ((phase_dev + std::f32::consts::PI) % (2.0 * std::f32::consts::PI)) - std::f32::consts::PI;
+            sum += mag * phase_dev.abs();
+        }
+        env[pad_left + t - 2] = sum / n_bins as Float;
+    }
+
+    Ok(env)
+}
+
+/// Complex-domain onset strength.
+fn onset_strength_complex(
+    y: ArrayView1<Float>,
+    _sr: u32,
+    hop_length: usize,
+) -> Result<Array1<Float>> {
+
+    let n_fft = 2048;
+    let window = WindowSpec::Named("hann".into());
+    let stft = spectrum::stft(y, n_fft, Some(hop_length), None, &window, true, PadMode::Constant)?;
+    let n_frames = stft.ncols();
+    let n_bins = stft.nrows();
+
+    if n_frames < 3 {
+        return Ok(Array1::zeros(n_frames));
+    }
+
+    let pad_left = 2 + n_fft / (2 * hop_length);
+    let out_len = n_frames - 2 + pad_left;
+    let mut env = Array1::<Float>::zeros(out_len);
+
+    // Predicted spectrum: |S[t-1]| * exp(j * (2*phase[t-1] - phase[t-2]))
+    for t in 2..n_frames {
+        let mut sum = 0.0;
+        for b in 0..n_bins {
+            let p0 = stft[(b, t - 2)].arg();
+            let p1 = stft[(b, t - 1)].arg();
+            let mag_prev = stft[(b, t - 1)].norm();
+            let predicted_phase = 2.0 * p1 - p0;
+            let predicted = Complex::new(
+                mag_prev * predicted_phase.cos(),
+                mag_prev * predicted_phase.sin(),
+            );
+            let actual = stft[(b, t)];
+            sum += (actual - predicted).norm();
+        }
+        env[pad_left + t - 2] = sum / n_bins as Float;
+    }
+
+    Ok(env)
+}
+
 /// Backtrack onset events to the nearest preceding energy minimum.
 pub fn onset_backtrack(events: &[usize], energy: ArrayView1<Float>) -> Vec<usize> {
     let mut backtracked = Vec::with_capacity(events.len());
@@ -232,5 +398,17 @@ mod tests {
         let env = onset_strength_multi(y.view(), 22050, 512, 1, None).unwrap();
         assert_eq!(env.nrows(), 1);
         assert!(env.ncols() > 0);
+    }
+
+    #[test]
+    fn test_onset_strength_methods() {
+        let y = click_train(22050, 2.0, 120.0);
+        for method in [OnsetMethod::SpectralFlux, OnsetMethod::Energy, OnsetMethod::Phase, OnsetMethod::Complex] {
+            let env = onset_strength_method(y.view(), 22050, 512, method).unwrap();
+            assert!(env.len() > 0, "method {:?} produced empty envelope", method);
+            // Each method should produce non-zero values for a click train
+            let max = env.iter().copied().fold(0.0_f32, Float::max);
+            assert!(max > 0.0, "method {:?} max={max}, expected >0", method);
+        }
     }
 }

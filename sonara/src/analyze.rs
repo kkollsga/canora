@@ -190,6 +190,12 @@ pub struct TrackAnalysis {
     pub mfcc_mean: Option<Vec<Float>>,
     pub chroma_mean: Option<Vec<Float>>,
 
+    // -- Rhythm (extended or full) --
+    pub tempo_curve: Option<Vec<Float>>,
+    pub tempo_variability: Option<Float>,
+    pub time_signature: Option<String>,
+    pub time_signature_confidence: Option<Float>,
+
     // -- Perceptual (extended or full) --
     pub energy: Option<Float>,
     pub danceability: Option<Float>,
@@ -199,7 +205,7 @@ pub struct TrackAnalysis {
     pub acousticness: Option<Float>,
 
     // -- Tier 3 placeholders (future ML models) --
-    /// Requires ML model. See essentia's TensorFlow-based classifiers.
+    /// Requires ML model (future).
     pub mood_happy: Option<Float>,
     pub mood_aggressive: Option<Float>,
     pub mood_relaxed: Option<Float>,
@@ -562,7 +568,7 @@ fn analyze_signal_inner(
         for t in 0..n_frames {
             let mut frame_chroma = [0.0_f32; 12];
             for c in 0..12 { frame_chroma[c] = chroma_raw[(c, t)]; }
-            // L-inf normalize per frame (matches librosa's default)
+            // L-inf normalize per frame
             let max_val = frame_chroma.iter().copied().fold(0.0_f32, Float::max);
             if max_val > 0.0 {
                 for v in frame_chroma.iter_mut() { *v /= max_val; }
@@ -661,6 +667,38 @@ fn analyze_signal_inner(
     } else { None };
 
     // ================================================================
+    // RHYTHM: Tempo curve & time signature
+    // ================================================================
+
+    let (tempo_curve, tempo_variability) = if extended && config.wants("tempo_curve") {
+        let tc = crate::beat::tempo_curve(&beats, sr, hop_length, Some(5))
+            .unwrap_or_default();
+        let tv = crate::beat::tempo_variability(&tc);
+        (Some(tc), Some(tv))
+    } else {
+        (None, None)
+    };
+
+    let (time_signature, time_signature_confidence) = if extended && config.wants("time_signature") {
+        let win = 384.min(oenv_padded.len());
+        if win >= 4 {
+            match crate::feature::rhythm::metrogram(
+                None, Some(oenv_padded.view()), sr, hop_length, win, None,
+            ) {
+                Ok(mg) => {
+                    let (label, conf) = crate::feature::rhythm::detect_time_signature(mg.view(), None);
+                    (Some(label), Some(conf))
+                }
+                Err(_) => (None, None),
+            }
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
+
+    // ================================================================
     // PERCEPTUAL FEATURES (from already-computed scalars, ~0 extra cost)
     // ================================================================
 
@@ -718,6 +756,10 @@ fn analyze_signal_inner(
         spectral_contrast_mean,
         mfcc_mean,
         chroma_mean,
+        tempo_curve,
+        tempo_variability,
+        time_signature,
+        time_signature_confidence,
         energy,
         danceability,
         key,

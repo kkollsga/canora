@@ -1,12 +1,11 @@
 //! Short-time Fourier Transform and spectral operations.
 //!
-//! Mirrors librosa.core.spectrum — stft, istft, griffinlim, magphase,
-//! phase_vocoder, power_to_db, db_to_power, amplitude_to_db, db_to_amplitude,
-//! perceptual_weighting, pcen, fmt, reassigned_spectrogram, iirt, _spectrogram.
+//! Short-time Fourier Transform and spectral operations.
 //!
-//! The STFT is the foundational transform — nearly every librosa feature
-//! depends on it. This implementation uses realfft for the FFT and processes
-//! frames in cache-friendly chunks via MAX_MEM_BLOCK.
+//! STFT, ISTFT, Griffin-Lim, magphase, phase vocoder, dB conversions,
+//! perceptual weighting, PCEN, and more. The STFT is the foundational
+//! transform — nearly every spectral feature depends on it. Uses realfft
+//! for the FFT and processes frames in cache-friendly chunks.
 
 use std::f32::consts::PI;
 

@@ -8,9 +8,9 @@ All notable changes to sonara are documented in this file.
 
 - **Key detection C minor bias eliminated** — replaced mel-to-chroma approximation with proper chroma filterbank (`filters::chroma()`) in all analysis modes. C minor dropped from 39% to 5.5% on a 200-song test. The mel approximation had two flaws: frequencies below C0 defaulted to bin 0 (C), and mel bands were too wide to resolve semitones accurately.
 - **Spectral contrast accuracy** — now always uses proper log-spaced frequency bands on the magnitude spectrum instead of the mel sub-band approximation. Removed the separate `accurate` vs fast branch.
-- **Key profiles upgraded** — switched from Krumhansl (1990, classical-biased) to Temperley MIREX 2005 profiles (corpus-derived, better for popular music). Matches essentia's recommendation of corpus-derived profiles for non-classical repertoire.
+- **Key profiles upgraded** — switched from Krumhansl (1990, classical-biased) to Temperley MIREX 2005 profiles (corpus-derived, better for popular music).
 - **Energy scaling improved** — expanded RMS normalization range from 0.4 to 0.5, onset density ceiling from 8 to 10, reduced sigmoid steepness from 5.0 to 4.0 with shifted center (0.5 → 0.45). Energy floor raised from 0.007 to 0.14 on quiet music.
-- **Python test dtype** — fixed `test_api.py` and `benchmark_vs_librosa.py` to use `np.float32` arrays (was `np.float64`), matching the f32 Rust bindings.
+- **Python test dtype** — fixed `test_api.py` and benchmarks to use `np.float32` arrays (was `np.float64`), matching the f32 Rust bindings.
 
 ### Changed
 
@@ -21,7 +21,7 @@ All notable changes to sonara are documented in this file.
 
 ### Performance
 
-- **Switch to f32 precision** — halves memory bandwidth across the entire pipeline; eliminates f32-to-f64 conversion during MP3 decode (Symphonia decodes to f32 natively). Matches industry practice (aubio, essentia default to f32).
+- **Switch to f32 precision** — halves memory bandwidth across the entire pipeline; eliminates f32-to-f64 conversion during MP3 decode (Symphonia decodes to f32 natively). Standard practice for audio processing libraries.
 - **Parallelize fused analysis loop** — per-frame FFT + mel + centroid computation now uses rayon when frame count exceeds 32. Thread-local FFT caches avoid lock contention.
 - **Fast-path 2:1 decimation** — 31-tap half-band FIR filter for the common 44100-to-22050 Hz case, replacing full sinc resampling (~20x faster for this ratio).
 - **Pre-computed ln() table in beat DP** — eliminates transcendental function calls in the beat tracking inner loop.
@@ -76,7 +76,6 @@ All notable changes to sonara are documented in this file.
 - Rename `canora/` crate directory to `sonara/`, `canora-python/` to `sonara-python/`.
 - Rename Python package from `canora` to `sonara` (including `canora.display` to `sonara.display`).
 - Update all internal error types from `CanoraError` to `SonaraError`.
-- Remove `ACKNOWLEDGMENTS.md`.
 - Update README, examples, and benchmark scripts for the new name.
 
 ## [0.1.1] - 2026-04-14
@@ -99,13 +98,13 @@ All notable changes to sonara are documented in this file.
 - Initial release as **canora**.
 - Pure Rust core library with 214 functions across 22 source files.
 - PyO3 Python bindings with numpy zero-copy interop.
-- Drop-in replacement for 92 librosa functions: STFT/ISTFT, mel spectrogram, MFCC, chroma, beat tracking, onset detection, pitch estimation (YIN/pYIN), CQT/VQT/hybrid CQT/pseudo CQT, Griffin-Lim, and more.
+- 92 audio analysis functions: STFT/ISTFT, mel spectrogram, MFCC, chroma, beat tracking, onset detection, pitch estimation (YIN/pYIN), CQT/VQT/hybrid CQT/pseudo CQT, Griffin-Lim, and more.
 - Fused single-pass FFT pipeline with sparse mel projection (~97% sparsity).
 - Rayon-based parallel batch file analysis and parallel STFT.
 - Audio I/O via Symphonia (MP3, FLAC, OGG) and hound (WAV).
 - High-quality resampling via rubato (sinc interpolation).
 - BLAS acceleration support (Apple Accelerate, OpenBLAS).
-- Display module compatible with librosa's `specshow` API.
+- Display module with `specshow` for matplotlib-based visualization.
 - Criterion benchmarks for STFT, CQT, sequence, and utilities.
 - Full conversion suite: Hz/mel/MIDI/note/octave/svara, frequency weighting (A/B/C/D/Z), frame/time/sample conversions.
 - Effects: time stretch, pitch shift, trim, split, preemphasis/deemphasis.

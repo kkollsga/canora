@@ -1,6 +1,6 @@
 //! Pitch estimation algorithms.
 //!
-//! Mirrors librosa.core.pitch — yin, pyin, estimate_tuning, pitch_tuning, piptrack.
+//! YIN, pYIN (probabilistic with Viterbi HMM), piptrack, and tuning estimation.
 
 use std::f32::consts::PI;
 
@@ -101,15 +101,10 @@ pub fn yin(
 
 /// Probabilistic YIN (pYIN) pitch estimator.
 ///
-/// Full implementation matching librosa's algorithm: generates f0 candidates at
-/// multiple thresholds with a beta distribution prior, applies Boltzmann weighting
-/// over trough positions, quantizes to pitch bins, then uses Viterbi decoding over
-/// a 2N-state HMM (N voiced + N unvoiced states) for temporal smoothing.
-///
-/// **Performance advantages over librosa:**
-/// - No numba JIT cold-start (native Rust Viterbi)
-/// - Fused trough extraction + probability computation per frame
-/// - Pre-computed beta CDF (avoids scipy.stats overhead per call)
+/// Full pYIN implementation: generates f0 candidates at multiple thresholds
+/// with a beta distribution prior, applies Boltzmann weighting over trough
+/// positions, quantizes to pitch bins, then uses Viterbi decoding over a
+/// 2N-state HMM (N voiced + N unvoiced states) for temporal smoothing.
 ///
 /// Returns `(f0, voiced_flag, voiced_probabilities)`.
 pub fn pyin(
@@ -123,7 +118,7 @@ pub fn pyin(
     let hop = hop_length.unwrap_or(frame_length / 4);
     let sr_f = sr as Float;
 
-    // pYIN parameters (matching librosa defaults)
+    // pYIN parameters
     let n_thresholds: usize = 100;
     let beta_a: Float = 2.0;
     let beta_b: Float = 18.0;
@@ -458,7 +453,7 @@ pub fn pitch_tuning(
         .iter()
         .filter(|&&p| p > 0.0)
         .map(|&p| {
-            let midi = convert::hz_to_midi(p);
+            let midi = convert::hz_to_midi(p, None);
             let bin = midi * bpo / 12.0;
             let frac = bin - bin.round();
             frac * 12.0 / bpo // convert back to semitone fraction

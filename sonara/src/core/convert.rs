@@ -1,7 +1,7 @@
 //! Unit conversion functions for time, frequency, pitch, and musical notation.
 //!
-//! Mirrors librosa.core.convert — 42 conversion functions covering
-//! Hz, mel, MIDI, note names, octs, frames, samples, time, and weighting.
+//! Unit conversion functions for Hz, mel, MIDI, note names, octaves,
+//! frames, samples, time, and frequency weighting (50+ functions).
 
 use ndarray::{Array1, ArrayView1};
 
@@ -141,21 +141,30 @@ pub fn mel_to_hz_array(mels: ArrayView1<Float>, htk: bool) -> Array1<Float> {
 // ============================================================
 
 /// Convert Hz to MIDI note number (fractional).
-pub fn hz_to_midi(freq: Float) -> Float {
+///
+/// Set `a4_freq` to use a non-standard concert pitch (e.g., `Some(442.0)`
+/// for orchestral tuning). Defaults to A4 = 440 Hz.
+pub fn hz_to_midi(freq: Float, a4_freq: Option<Float>) -> Float {
     if freq <= 0.0 {
         return Float::NAN;
     }
-    A4_MIDI + 12.0 * (freq / A4_HZ).log2()
+    let a4 = a4_freq.unwrap_or(A4_HZ);
+    A4_MIDI + 12.0 * (freq / a4).log2()
 }
 
 /// Convert MIDI note number to Hz.
-pub fn midi_to_hz(midi: Float) -> Float {
-    A4_HZ * 2.0_f32.powf((midi - A4_MIDI) / 12.0)
+///
+/// Set `a4_freq` to use a non-standard concert pitch. Defaults to A4 = 440 Hz.
+pub fn midi_to_hz(midi: Float, a4_freq: Option<Float>) -> Float {
+    let a4 = a4_freq.unwrap_or(A4_HZ);
+    a4 * 2.0_f32.powf((midi - A4_MIDI) / 12.0)
 }
 
 /// Convert Hz to note name string (e.g., "A4", "C#5").
-pub fn hz_to_note(freq: Float) -> String {
-    let midi = hz_to_midi(freq);
+///
+/// Set `a4_freq` to use a non-standard concert pitch. Defaults to A4 = 440 Hz.
+pub fn hz_to_note(freq: Float, a4_freq: Option<Float>) -> String {
+    let midi = hz_to_midi(freq, a4_freq);
     midi_to_note(midi)
 }
 
@@ -174,9 +183,11 @@ pub fn midi_to_note(midi: Float) -> String {
 }
 
 /// Convert note name to Hz.
-pub fn note_to_hz(note: &str) -> crate::Result<Float> {
+///
+/// Set `a4_freq` to use a non-standard concert pitch. Defaults to A4 = 440 Hz.
+pub fn note_to_hz(note: &str, a4_freq: Option<Float>) -> crate::Result<Float> {
     let midi = note_to_midi(note)?;
-    Ok(midi_to_hz(midi))
+    Ok(midi_to_hz(midi, a4_freq))
 }
 
 /// Convert note name to MIDI note number.
@@ -238,14 +249,20 @@ pub fn note_to_midi(note: &str) -> crate::Result<Float> {
 // ============================================================
 
 /// Convert Hz to octave number (relative to A4 by default).
-pub fn hz_to_octs(freq: Float, tuning: Float, bins_per_octave: usize) -> Float {
-    let a4_tuned = A4_HZ * 2.0_f32.powf(tuning / bins_per_octave as Float);
+///
+/// Set `a4_freq` to use a non-standard concert pitch. Defaults to A4 = 440 Hz.
+pub fn hz_to_octs(freq: Float, tuning: Float, bins_per_octave: usize, a4_freq: Option<Float>) -> Float {
+    let a4 = a4_freq.unwrap_or(A4_HZ);
+    let a4_tuned = a4 * 2.0_f32.powf(tuning / bins_per_octave as Float);
     (freq / (a4_tuned / 16.0)).log2()
 }
 
 /// Convert octave number to Hz.
-pub fn octs_to_hz(octs: Float, tuning: Float, bins_per_octave: usize) -> Float {
-    let a4_tuned = A4_HZ * 2.0_f32.powf(tuning / bins_per_octave as Float);
+///
+/// Set `a4_freq` to use a non-standard concert pitch. Defaults to A4 = 440 Hz.
+pub fn octs_to_hz(octs: Float, tuning: Float, bins_per_octave: usize, a4_freq: Option<Float>) -> Float {
+    let a4 = a4_freq.unwrap_or(A4_HZ);
+    let a4_tuned = a4 * 2.0_f32.powf(tuning / bins_per_octave as Float);
     (a4_tuned / 16.0) * 2.0_f32.powf(octs)
 }
 
@@ -455,25 +472,25 @@ pub fn hz_to_svara_c(freq: Float, sa: Float, _abbr: bool) -> String {
 
 /// Convert MIDI note to Hindustani svara.
 pub fn midi_to_svara_h(midi: Float, sa_midi: Float, abbr: bool) -> String {
-    hz_to_svara_h(midi_to_hz(midi), midi_to_hz(sa_midi), abbr)
+    hz_to_svara_h(midi_to_hz(midi, None), midi_to_hz(sa_midi, None), abbr)
 }
 
 /// Convert MIDI note to Carnatic svara.
 pub fn midi_to_svara_c(midi: Float, sa_midi: Float, abbr: bool) -> String {
-    hz_to_svara_c(midi_to_hz(midi), midi_to_hz(sa_midi), abbr)
+    hz_to_svara_c(midi_to_hz(midi, None), midi_to_hz(sa_midi, None), abbr)
 }
 
 /// Convert note name to Hindustani svara.
 pub fn note_to_svara_h(note: &str, sa: &str, abbr: bool) -> crate::Result<String> {
-    let freq = note_to_hz(note)?;
-    let sa_freq = note_to_hz(sa)?;
+    let freq = note_to_hz(note, None)?;
+    let sa_freq = note_to_hz(sa, None)?;
     Ok(hz_to_svara_h(freq, sa_freq, abbr))
 }
 
 /// Convert note name to Carnatic svara.
 pub fn note_to_svara_c(note: &str, sa: &str, abbr: bool) -> crate::Result<String> {
-    let freq = note_to_hz(note)?;
-    let sa_freq = note_to_hz(sa)?;
+    let freq = note_to_hz(note, None)?;
+    let sa_freq = note_to_hz(sa, None)?;
     Ok(hz_to_svara_c(freq, sa_freq, abbr))
 }
 
@@ -539,38 +556,46 @@ mod tests {
 
     #[test]
     fn test_hz_to_midi_a4() {
-        assert_abs_diff_eq!(hz_to_midi(440.0), 69.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(hz_to_midi(440.0, None), 69.0, epsilon = 1e-5);
     }
 
     #[test]
     fn test_midi_to_hz_a4() {
-        assert_abs_diff_eq!(midi_to_hz(69.0), 440.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(midi_to_hz(69.0, None), 440.0, epsilon = 1e-5);
     }
 
     #[test]
     fn test_hz_midi_roundtrip() {
         for freq in [261.63, 440.0, 880.0, 1760.0] {
-            let midi = hz_to_midi(freq);
-            let recovered = midi_to_hz(midi);
+            let midi = hz_to_midi(freq, None);
+            let recovered = midi_to_hz(midi, None);
             assert_abs_diff_eq!(freq, recovered, epsilon = 1e-6);
         }
     }
 
     #[test]
+    fn test_hz_to_midi_custom_a4() {
+        // With A4=442Hz, 442Hz should map to MIDI 69
+        assert_abs_diff_eq!(hz_to_midi(442.0, Some(442.0)), 69.0, epsilon = 1e-5);
+        // And 440Hz should be slightly flat of 69
+        assert!(hz_to_midi(440.0, Some(442.0)) < 69.0);
+    }
+
+    #[test]
     fn test_note_to_hz_a4() {
-        let hz = note_to_hz("A4").unwrap();
+        let hz = note_to_hz("A4", None).unwrap();
         assert_abs_diff_eq!(hz, 440.0, epsilon = 1e-6);
     }
 
     #[test]
     fn test_note_to_hz_c4() {
-        let hz = note_to_hz("C4").unwrap();
+        let hz = note_to_hz("C4", None).unwrap();
         assert_abs_diff_eq!(hz, 261.6255653, epsilon = 0.01);
     }
 
     #[test]
     fn test_note_to_hz_sharp() {
-        let hz = note_to_hz("C#4").unwrap();
+        let hz = note_to_hz("C#4", None).unwrap();
         let expected = 440.0 * 2.0_f32.powf(-8.0 / 12.0); // C#4 = MIDI 61
         assert_abs_diff_eq!(hz, expected, epsilon = 0.01);
     }

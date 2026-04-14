@@ -143,9 +143,9 @@ pub struct KeyResult {
 const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 // Temperley MIREX 2005 key profiles — corpus-derived, better for popular music
-// than the original Krumhansl profiles. Essentia also recommends corpus-derived
-// profiles (edma/bgate) over Krumhansl for non-classical music.
-// Source: essentia key.cpp, D. Temperley "What's Key for Key?" (1999/2005)
+// than the original Krumhansl profiles. Corpus-derived profiles are generally
+// recommended over Krumhansl for non-classical music.
+// Source: D. Temperley "What's Key for Key?" (1999/2005)
 const KEY_PROFILE_MAJOR: [Float; 12] = [0.748, 0.060, 0.488, 0.082, 0.670, 0.460, 0.096, 0.715, 0.104, 0.366, 0.057, 0.400];
 const KEY_PROFILE_MINOR: [Float; 12] = [0.712, 0.084, 0.474, 0.618, 0.049, 0.460, 0.105, 0.747, 0.404, 0.067, 0.133, 0.330];
 
@@ -219,7 +219,7 @@ pub fn danceability_heuristic(bpm: Float, beats: &[usize], onset_density: Float)
 
 /// Accurate danceability via Detrended Fluctuation Analysis (DFA).
 ///
-/// Based on Streich & Herrera 2005, same algorithm as essentia's Danceability.
+/// Based on Streich & Herrera 2005.
 /// Operates on the raw audio signal. Returns 0.0 - 1.0 (normalized from raw DFA
 /// values which typically range 0 to ~3).
 pub fn danceability_dfa(y: ArrayView1<Float>, sr: u32) -> Float {

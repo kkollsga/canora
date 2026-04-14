@@ -16,7 +16,26 @@ pub fn py_beat_track(
     rs::beat_track(yv, ev, sr, hop_length, start_bpm, tightness, trim).into_pyresult()
 }
 
+#[pyfunction]
+#[pyo3(name = "tempo_curve", signature = (beat_frames, *, sr=22050, hop_length=512, smooth=None))]
+pub fn py_tempo_curve(
+    beat_frames: Vec<usize>,
+    sr: u32,
+    hop_length: usize,
+    smooth: Option<usize>,
+) -> PyResult<Vec<f32>> {
+    rs::tempo_curve(&beat_frames, sr, hop_length, smooth).into_pyresult()
+}
+
+#[pyfunction]
+#[pyo3(name = "tempo_variability")]
+pub fn py_tempo_variability(tempo_curve: Vec<f32>) -> f32 {
+    rs::tempo_variability(&tempo_curve)
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_beat_track, m)?)?;
+    m.add_function(wrap_pyfunction!(py_tempo_curve, m)?)?;
+    m.add_function(wrap_pyfunction!(py_tempo_variability, m)?)?;
     Ok(())
 }

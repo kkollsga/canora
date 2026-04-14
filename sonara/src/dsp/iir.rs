@@ -1,7 +1,7 @@
 //! IIR (Infinite Impulse Response) digital filter implementations.
 //!
 //! Replaces scipy.signal.lfilter, filtfilt, and sosfiltfilt.
-//! These are used by librosa for PCEN, preemphasis/deemphasis, and iirt.
+//! Used for PCEN, preemphasis/deemphasis, and iirt.
 
 use ndarray::{Array1, ArrayView1};
 

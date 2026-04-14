@@ -1,6 +1,6 @@
 //! Source separation and matrix decomposition.
 //!
-//! Mirrors librosa.decompose — hpss, decompose (NMF), nn_filter.
+//! HPSS, NMF decomposition, and nearest-neighbor filtering.
 
 use ndarray::{Array2, ArrayView2};
 

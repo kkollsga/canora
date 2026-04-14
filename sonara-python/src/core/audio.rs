@@ -68,6 +68,25 @@ pub fn py_mu_expand<'py>(py: Python<'py>, y: PyReadonlyArray1<'py, f32>, mu: f32
     rs::mu_expand(y.as_array(), mu).into_pyarray(py)
 }
 
+#[pyfunction]
+#[pyo3(name = "stream_with_resample", signature = (
+    path, *, block_length=64, frame_length=2048, hop_length=512, target_sr=22050, mono=true
+))]
+pub fn py_stream_with_resample<'py>(
+    py: Python<'py>,
+    path: &str,
+    block_length: usize,
+    frame_length: usize,
+    hop_length: usize,
+    target_sr: u32,
+    mono: bool,
+) -> PyResult<Vec<Bound<'py, PyArray1<f32>>>> {
+    let blocks = rs::stream_with_resample(
+        Path::new(path), block_length, frame_length, hop_length, target_sr, mono,
+    ).into_pyresult()?;
+    Ok(blocks.into_iter().map(|b| b.into_pyarray(py)).collect())
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_load, m)?)?;
     m.add_function(wrap_pyfunction!(py_to_mono, m)?)?;
@@ -82,5 +101,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_clicks, m)?)?;
     m.add_function(wrap_pyfunction!(py_mu_compress, m)?)?;
     m.add_function(wrap_pyfunction!(py_mu_expand, m)?)?;
+    m.add_function(wrap_pyfunction!(py_stream_with_resample, m)?)?;
     Ok(())
 }

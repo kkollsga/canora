@@ -1,7 +1,7 @@
 //! Structural segmentation.
 //!
-//! Mirrors librosa.segment — recurrence_matrix, cross_similarity,
-//! recurrence_to_lag, lag_to_recurrence, path_enhance, subsegment.
+//! Recurrence matrix, cross-similarity, lag conversion, path enhancement,
+//! and subsegmentation.
 
 use ndarray::{Array2, ArrayView2};
 

@@ -1,7 +1,8 @@
 //! Filter bank design for spectral analysis.
 //!
-//! Mirrors librosa.filters — mel, chroma, constant_q, wavelet,
-//! get_window, window_sumsquare, window_bandwidth, cq_to_chroma, etc.
+//! Mel, chroma, constant-Q, wavelet, and other filter banks for
+//! spectral analysis. Includes get_window, window_sumsquare,
+//! window_bandwidth, and cq_to_chroma.
 
 use ndarray::{Array1, Array2, ArrayView1};
 
@@ -111,7 +112,7 @@ pub fn chroma(
         }
 
         // Map frequency to chroma bin (0-11 for standard 12-chroma)
-        let midi = convert::hz_to_midi(freq) + tuning;
+        let midi = convert::hz_to_midi(freq, None) + tuning;
         let chroma_val = ((midi % n_chroma as Float) + n_chroma as Float) % n_chroma as Float;
         let chroma_bin = chroma_val.floor() as usize % n_chroma;
 
@@ -170,7 +171,7 @@ pub fn wavelet_lengths(
 
 /// Get a window function by specification.
 ///
-/// Wraps `dsp::windows::get_window` with the same interface as librosa.filters.get_window.
+/// Wraps `dsp::windows::get_window` with a convenient interface.
 pub fn get_window(window: &WindowSpec, n: usize, fftbins: bool) -> Result<Array1<Float>> {
     windows::get_window(window, n, fftbins)
 }

@@ -1,6 +1,6 @@
 //! Event and interval matching utilities.
 //!
-//! Mirrors librosa.util.matching — match_intervals, match_events.
+//! Event and interval matching — match_intervals, match_events.
 
 #[cfg(test)]
 use ndarray::Array2;

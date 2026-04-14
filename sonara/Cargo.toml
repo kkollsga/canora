@@ -2,11 +2,11 @@
 name = "sonara"
 version = "0.1.0"
 edition = "2021"
-description = "High-performance audio analysis library — fast alternative to librosa for music information retrieval"
+description = "High-performance audio analysis library for music information retrieval"
 license = "MIT"
 repository = "https://github.com/kkollsga/sonara"
 readme = "../README.md"
-keywords = ["audio", "music", "librosa", "mir", "stft"]
+keywords = ["audio", "music", "mir", "stft", "analysis"]
 categories = ["multimedia::audio", "science"]
 
 [dependencies]

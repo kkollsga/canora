@@ -1,6 +1,6 @@
 //! Frequency interval utilities.
 //!
-//! Mirrors librosa.core.intervals — interval_frequencies,
+//! Interval frequency generation — interval_frequencies,
 //! pythagorean_intervals, plimit_intervals.
 
 use ndarray::Array1;
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_plimit_5() {
-        // Match librosa's API: plimit_intervals(primes=[3, 5], bins_per_octave=7)
+        // plimit_intervals(primes=[3, 5], bins_per_octave=7)
         // Expected: [1.0, 1.125, 1.25, 1.333, 1.5, 1.667, 1.875]
         let intervals = plimit_intervals(5, 7);
         assert_eq!(intervals.len(), 7);

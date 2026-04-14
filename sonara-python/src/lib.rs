@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 mod analyze;
 mod beat;
 mod core;
+mod effects;
 mod error;
 mod feature;
 mod filters;
@@ -18,13 +19,14 @@ fn _sonara(m: &Bound<'_, PyModule>) -> PyResult<()> {
     analyze::register(m)?;
     beat::register(m)?;
     core::register(m)?;
+    effects::register(m)?;
     feature::register(m)?;
     filters::register(m)?;
     onset::register(m)?;
     util::register(m)?;
 
     // ========================================================
-    // Top-level re-exports (matching librosa.__init__.pyi)
+    // Top-level re-exports
     // ========================================================
 
     // --- Core: Audio I/O ---
@@ -41,6 +43,7 @@ fn _sonara(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core::audio::py_chirp, m)?)?;
     m.add_function(wrap_pyfunction!(core::audio::py_mu_compress, m)?)?;
     m.add_function(wrap_pyfunction!(core::audio::py_mu_expand, m)?)?;
+    m.add_function(wrap_pyfunction!(core::audio::py_stream_with_resample, m)?)?;
 
     // --- Core: Conversions (all 50+) ---
     m.add_function(wrap_pyfunction!(core::convert::py_hz_to_mel, m)?)?;
@@ -129,10 +132,19 @@ fn _sonara(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core::spectrum::py_interp_harmonics, m)?)?;
     m.add_function(wrap_pyfunction!(core::spectrum::py_f0_harmonics, m)?)?;
 
+    // --- Effects ---
+    m.add_function(wrap_pyfunction!(effects::py_trim, m)?)?;
+    m.add_function(wrap_pyfunction!(effects::py_split, m)?)?;
+    m.add_function(wrap_pyfunction!(effects::py_split_with_constraints, m)?)?;
+    m.add_function(wrap_pyfunction!(effects::py_melody_separate, m)?)?;
+
     // --- Onset / Beat ---
     m.add_function(wrap_pyfunction!(onset::py_onset_detect, m)?)?;
     m.add_function(wrap_pyfunction!(onset::py_onset_strength, m)?)?;
+    m.add_function(wrap_pyfunction!(onset::py_onset_strength_method, m)?)?;
     m.add_function(wrap_pyfunction!(beat::py_beat_track, m)?)?;
+    m.add_function(wrap_pyfunction!(beat::py_tempo_curve, m)?)?;
+    m.add_function(wrap_pyfunction!(beat::py_tempo_variability, m)?)?;
 
     // --- Filters ---
     m.add_function(wrap_pyfunction!(filters::py_mel, m)?)?;

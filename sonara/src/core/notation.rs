@@ -1,8 +1,7 @@
 //! Music notation utilities.
 //!
-//! Mirrors librosa.core.notation — key_to_notes, key_to_degrees,
-//! mela_to_svara, mela_to_degrees, thaat_to_degrees, list_mela, list_thaat,
-//! fifths_to_note, interval_to_fjs.
+//! Key/scale mapping, Indian notation (mela/thaat/svara), and just intonation
+//! (FJS, Pythagorean, p-limit intervals).
 
 use crate::error::{SonaraError, Result};
 use crate::types::Float;

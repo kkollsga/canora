@@ -1,8 +1,6 @@
 //! Sequence alignment and dynamic programming algorithms.
 //!
-//! Mirrors librosa.sequence — dtw, rqa, viterbi, viterbi_discriminative,
-//! viterbi_binary, transition_uniform, transition_loop, transition_cycle,
-//! transition_local.
+//! DTW, RQA, Viterbi decoding, and transition matrix construction.
 
 use ndarray::{Array1, Array2, ArrayView1, ArrayView2};
 

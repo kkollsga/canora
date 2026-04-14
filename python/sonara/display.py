@@ -1,6 +1,6 @@
 """Display utilities for sonara — specshow, waveshow, cmap.
 
-Pure Python module wrapping matplotlib. Mirrors librosa.display API.
+Pure Python module wrapping matplotlib for spectrogram and waveform visualization.
 """
 
 import warnings

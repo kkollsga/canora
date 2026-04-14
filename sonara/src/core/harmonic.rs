@@ -1,6 +1,6 @@
 //! Harmonic analysis — salience, interp_harmonics, f0_harmonics.
 //!
-//! Mirrors librosa.core.harmonic.
+//! Salience, interp_harmonics, and f0_harmonics.
 
 #[cfg(test)]
 use ndarray::Array1;

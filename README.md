@@ -2,7 +2,7 @@
 
 **High-performance audio analysis library for Python, written in Rust.**
 
-A drop-in replacement for [librosa](https://librosa.org/) with significantly faster feature extraction, batch analysis, and built-in perceptual features for playlist generation.
+High-performance audio feature extraction, batch analysis, and built-in perceptual features for playlist generation.
 
 > *sonara* — from Latin *sonare*, "to sound, to resonate"
 
@@ -169,10 +169,10 @@ plt.show()
 
 All arithmetic uses f32 precision (matching native decoder format), with a parallelized fused FFT pipeline and fast-path 2:1 decimation for the common 44100 Hz to 22050 Hz resampling case.
 
-### vs librosa
+### Benchmarks
 
-| Feature | Speedup |
-|---------|---------|
+| Feature | Speedup vs Python |
+|---------|-------------------|
 | Mel spectrogram | ~3x |
 | MFCC | ~3x |
 | Beat tracking | ~4x |
@@ -202,7 +202,7 @@ All arithmetic uses f32 precision (matching native decoder format), with a paral
 
 ## API Compatibility
 
-sonara implements 92 of librosa's top-level functions with matching signatures:
+sonara provides 92+ audio analysis functions:
 
 **Core Audio:** `load`, `stft`, `istft`, `resample`, `to_mono`, `tone`, `chirp`, `clicks`
 

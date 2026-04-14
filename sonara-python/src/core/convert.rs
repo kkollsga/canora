@@ -11,14 +11,14 @@ pub fn py_hz_to_mel(freq: f32, htk: bool) -> f32 { rs::hz_to_mel(freq, htk) }
 #[pyfunction] #[pyo3(name = "mel_to_hz", signature = (mel, *, htk=false))]
 pub fn py_mel_to_hz(mel: f32, htk: bool) -> f32 { rs::mel_to_hz(mel, htk) }
 
-#[pyfunction] #[pyo3(name = "hz_to_midi")]
-pub fn py_hz_to_midi(freq: f32) -> f32 { rs::hz_to_midi(freq) }
+#[pyfunction] #[pyo3(name = "hz_to_midi", signature = (freq, *, a4=None))]
+pub fn py_hz_to_midi(freq: f32, a4: Option<f32>) -> f32 { rs::hz_to_midi(freq, a4) }
 
-#[pyfunction] #[pyo3(name = "midi_to_hz")]
-pub fn py_midi_to_hz(midi: f32) -> f32 { rs::midi_to_hz(midi) }
+#[pyfunction] #[pyo3(name = "midi_to_hz", signature = (midi, *, a4=None))]
+pub fn py_midi_to_hz(midi: f32, a4: Option<f32>) -> f32 { rs::midi_to_hz(midi, a4) }
 
-#[pyfunction] #[pyo3(name = "note_to_hz")]
-pub fn py_note_to_hz(note: &str) -> PyResult<f32> { rs::note_to_hz(note).into_pyresult() }
+#[pyfunction] #[pyo3(name = "note_to_hz", signature = (note, *, a4=None))]
+pub fn py_note_to_hz(note: &str, a4: Option<f32>) -> PyResult<f32> { rs::note_to_hz(note, a4).into_pyresult() }
 
 #[pyfunction] #[pyo3(name = "note_to_midi")]
 pub fn py_note_to_midi(note: &str) -> PyResult<f32> { rs::note_to_midi(note).into_pyresult() }
@@ -26,14 +26,14 @@ pub fn py_note_to_midi(note: &str) -> PyResult<f32> { rs::note_to_midi(note).int
 #[pyfunction] #[pyo3(name = "midi_to_note")]
 pub fn py_midi_to_note(midi: f32) -> String { rs::midi_to_note(midi) }
 
-#[pyfunction] #[pyo3(name = "hz_to_note")]
-pub fn py_hz_to_note(freq: f32) -> String { rs::hz_to_note(freq) }
+#[pyfunction] #[pyo3(name = "hz_to_note", signature = (freq, *, a4=None))]
+pub fn py_hz_to_note(freq: f32, a4: Option<f32>) -> String { rs::hz_to_note(freq, a4) }
 
-#[pyfunction] #[pyo3(name = "hz_to_octs", signature = (freq, *, tuning=0.0, bins_per_octave=12))]
-pub fn py_hz_to_octs(freq: f32, tuning: f32, bins_per_octave: usize) -> f32 { rs::hz_to_octs(freq, tuning, bins_per_octave) }
+#[pyfunction] #[pyo3(name = "hz_to_octs", signature = (freq, *, tuning=0.0, bins_per_octave=12, a4=None))]
+pub fn py_hz_to_octs(freq: f32, tuning: f32, bins_per_octave: usize, a4: Option<f32>) -> f32 { rs::hz_to_octs(freq, tuning, bins_per_octave, a4) }
 
-#[pyfunction] #[pyo3(name = "octs_to_hz", signature = (octs, *, tuning=0.0, bins_per_octave=12))]
-pub fn py_octs_to_hz(octs: f32, tuning: f32, bins_per_octave: usize) -> f32 { rs::octs_to_hz(octs, tuning, bins_per_octave) }
+#[pyfunction] #[pyo3(name = "octs_to_hz", signature = (octs, *, tuning=0.0, bins_per_octave=12, a4=None))]
+pub fn py_octs_to_hz(octs: f32, tuning: f32, bins_per_octave: usize, a4: Option<f32>) -> f32 { rs::octs_to_hz(octs, tuning, bins_per_octave, a4) }
 
 #[pyfunction] #[pyo3(name = "A4_to_tuning", signature = (a4, *, bins_per_octave=12))]
 pub fn py_a4_to_tuning(a4: f32, bins_per_octave: usize) -> f32 { rs::a4_to_tuning(a4, bins_per_octave) }

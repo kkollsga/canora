@@ -1,6 +1,6 @@
 //! Core utility functions used pervasively across sonara.
 //!
-//! Mirrors librosa.util.utils — frame, pad_center, normalize, peak_pick, etc.
+//! Frame, pad_center, normalize, peak_pick, and other core utilities.
 
 use ndarray::{s, Array1, Array2, ArrayView1, Axis};
 use num_complex::Complex;

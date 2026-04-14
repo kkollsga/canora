@@ -1,7 +1,7 @@
 //! Beat tracking.
 //!
-//! Mirrors librosa.beat — beat_track, plp.
-//! Uses dynamic programming for beat tracking (Ellis 2007 algorithm).
+//! Beat tracking via dynamic programming (Ellis 2007 algorithm).
+//! Includes beat_track, plp, tempo_curve, and tempo_variability.
 
 use ndarray::{Array1, ArrayView1};
 
@@ -299,6 +299,68 @@ pub fn plp(
     Ok(pulse)
 }
 
+/// Compute a per-beat tempo curve from beat frame positions.
+///
+/// Returns a vector of BPM values, one per inter-beat interval
+/// (length = `beat_frames.len() - 1`).
+///
+/// - `smooth`: optional median filter window size for smoothing.
+///   Use an odd number (e.g., 5) to reduce jitter.
+pub fn tempo_curve(
+    beat_frames: &[usize],
+    sr: u32,
+    hop_length: usize,
+    smooth: Option<usize>,
+) -> Result<Vec<Float>> {
+    if beat_frames.len() < 2 {
+        return Ok(vec![]);
+    }
+
+    let sr_f = sr as Float;
+    let hop_f = hop_length as Float;
+
+    // Convert frame intervals to BPM
+    let mut bpms: Vec<Float> = beat_frames
+        .windows(2)
+        .map(|w| {
+            let dt = (w[1] as Float - w[0] as Float) * hop_f / sr_f;
+            if dt > 0.0 { 60.0 / dt } else { 0.0 }
+        })
+        .collect();
+
+    // Optional median filter smoothing
+    if let Some(k) = smooth {
+        if k >= 3 && bpms.len() >= k {
+            let half = k / 2;
+            let orig = bpms.clone();
+            for i in half..orig.len().saturating_sub(half) {
+                let mut window: Vec<Float> = orig[i - half..i + half + 1].to_vec();
+                window.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                bpms[i] = window[window.len() / 2];
+            }
+        }
+    }
+
+    Ok(bpms)
+}
+
+/// Compute the coefficient of variation (std/mean) of the tempo curve.
+///
+/// A low value (< 0.05) indicates steady tempo; a high value (> 0.1)
+/// indicates significant tempo variation.
+pub fn tempo_variability(tempo_curve: &[Float]) -> Float {
+    if tempo_curve.is_empty() {
+        return 0.0;
+    }
+    let n = tempo_curve.len() as Float;
+    let mean = tempo_curve.iter().sum::<Float>() / n;
+    if mean <= 0.0 {
+        return 0.0;
+    }
+    let variance = tempo_curve.iter().map(|&b| (b - mean).powi(2)).sum::<Float>() / n;
+    variance.sqrt() / mean
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,5 +409,27 @@ mod tests {
         let y = click_train(22050, 2.0, 120.0);
         let pulse = plp(y.view(), 22050, 512, 30.0, 300.0).unwrap();
         assert!(pulse.len() > 0);
+    }
+
+    #[test]
+    fn test_tempo_curve_steady() {
+        // Steady 120 BPM → each beat every ~43 frames at sr=22050, hop=512
+        let frames_per_beat = (60.0_f32 / 120.0 * 22050.0 / 512.0).round() as usize;
+        let beats: Vec<usize> = (0..10).map(|i| i * frames_per_beat).collect();
+        let curve = tempo_curve(&beats, 22050, 512, None).unwrap();
+        assert_eq!(curve.len(), 9);
+        for &bpm in &curve {
+            assert!((bpm - 120.0).abs() < 5.0, "expected ~120 BPM, got {bpm}");
+        }
+        let var = tempo_variability(&curve);
+        assert!(var < 0.01, "steady tempo should have low variability, got {var}");
+    }
+
+    #[test]
+    fn test_tempo_curve_empty() {
+        let curve = tempo_curve(&[], 22050, 512, None).unwrap();
+        assert!(curve.is_empty());
+        let curve = tempo_curve(&[10], 22050, 512, None).unwrap();
+        assert!(curve.is_empty());
     }
 }

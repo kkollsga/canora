@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Test all major usage patterns from librosa's README, docs, and examples.
+"""Test all major API usage patterns.
 
-Verifies that sonara can be used as a drop-in replacement for librosa
-in every documented workflow pattern.
+Verifies that sonara's core functions work correctly across
+common audio analysis workflows.
 """
 
 import sys
@@ -41,7 +41,7 @@ for i in range(0, 4 * sr, sr // 2):  # 120 BPM
     y_clicks[i:i+100] = np.sin(2 * np.pi * 1000 * np.arange(100) / sr)
 
 print("=" * 70)
-print("  Testing librosa doc patterns with sonara")
+print("  Testing sonara API patterns")
 print("=" * 70)
 
 # ============================================================

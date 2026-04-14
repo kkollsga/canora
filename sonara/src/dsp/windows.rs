@@ -1,7 +1,7 @@
 //! Window function generation.
 //!
 //! Implements the standard window functions used in spectral analysis.
-//! These replace scipy.signal.get_window for the subset used by librosa.
+//! These replace scipy.signal.get_window for the subset used in audio analysis.
 
 use std::f32::consts::PI;
 

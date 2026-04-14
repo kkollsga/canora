@@ -1,8 +1,7 @@
 //! Spectral feature extraction.
 //!
-//! Mirrors librosa.feature.spectral — melspectrogram, mfcc, chroma_stft,
-//! tonnetz, spectral_centroid, spectral_bandwidth, spectral_contrast,
-//! spectral_rolloff, spectral_flatness, rms, zero_crossing_rate.
+//! Mel spectrogram, MFCC, chroma, tonnetz, spectral centroid/bandwidth/
+//! contrast/rolloff/flatness, RMS, and zero-crossing rate.
 //!
 //! Optimization: fused STFT→magnitude→power→mel projection avoids
 //! intermediate allocations. Spectral moments (centroid, bandwidth)

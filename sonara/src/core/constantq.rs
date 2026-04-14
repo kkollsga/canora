@@ -1,6 +1,6 @@
 //! Constant-Q and Variable-Q Transform.
 //!
-//! Mirrors librosa.core.constantq — cqt, vqt, hybrid_cqt, pseudo_cqt, icqt, griffinlim_cqt.
+//! CQT, VQT, hybrid CQT, pseudo CQT, inverse CQT, and Griffin-Lim CQT.
 //!
 //! The CQT provides logarithmically-spaced frequency resolution, making it
 //! ideal for music analysis where pitch is perceived logarithmically.
@@ -118,7 +118,7 @@ pub fn vqt(
         // Downsample for next octave (lower frequencies)
         if oct + 1 < n_octaves && hop_current % 2 == 0 {
             // Simple 2x downsampling: take every other sample
-            // (librosa uses proper anti-alias filtering via resample)
+            // (proper anti-alias filtering via resample would be better)
             let n = y_current.len();
             let mut downsampled = Array1::<Float>::zeros(n / 2);
             for i in 0..n / 2 {
@@ -192,7 +192,7 @@ pub fn hybrid_cqt(
     filter_scale: Float,
 ) -> Result<Array2<ComplexFloat>> {
     // For simplicity, delegate to full CQT
-    // (librosa's optimization splits at a filter-length threshold — implement if profiling shows need)
+    // (a further optimization would split at a filter-length threshold — implement if profiling shows need)
     cqt(y, sr, hop_length, fmin, n_bins, bins_per_octave, filter_scale)
 }
 

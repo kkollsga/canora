@@ -1,8 +1,8 @@
 //! Audio loading, resampling, and time-domain processing.
 //!
-//! Mirrors librosa.core.audio — load, stream, to_mono, resample,
-//! get_duration, get_samplerate, autocorrelate, lpc, zero_crossings,
-//! clicks, tone, chirp, mu_compress, mu_expand.
+//! Audio I/O, resampling, streaming, and time-domain processing.
+//! Includes load, stream, to_mono, resample, get_duration, get_samplerate,
+//! autocorrelate, lpc, zero_crossings, clicks, tone, chirp, mu_compress, mu_expand.
 
 use std::f32::consts::PI;
 use std::path::Path;
@@ -424,6 +424,188 @@ pub fn stream(
     mono: bool,
 ) -> Result<Vec<AudioBuffer>> {
     let (y, _) = load(path, sr, mono, 0.0, 0.0)?;
+    let step = block_length * hop_length;
+    let mut blocks = Vec::new();
+    let mut pos = 0;
+    while pos < y.len() {
+        let end = (pos + step + frame_length).min(y.len());
+        blocks.push(y.slice(ndarray::s![pos..end]).to_owned());
+        pos += step;
+    }
+    Ok(blocks)
+}
+
+/// Stateful stream resampler for chunk-by-chunk processing.
+///
+/// Wraps rubato's FFT resampler with internal buffering so that input
+/// chunks of arbitrary size can be processed incrementally.
+pub struct StreamResampler {
+    resampler: rubato::Fft<f32>,
+    buffer: Vec<f32>,
+    #[allow(dead_code)]
+    orig_sr: u32,
+    #[allow(dead_code)]
+    target_sr: u32,
+}
+
+impl StreamResampler {
+    /// Create a new stream resampler.
+    ///
+    /// - `orig_sr` / `target_sr`: source and target sample rates
+    /// - `chunk_size`: internal processing chunk size (default 1024)
+    pub fn new(orig_sr: u32, target_sr: u32, chunk_size: usize) -> Result<Self> {
+        use rubato::{Fft, FixedSync};
+
+        if orig_sr == target_sr {
+            return Err(SonaraError::InvalidParameter {
+                param: "target_sr",
+                reason: "target_sr must differ from orig_sr".into(),
+            });
+        }
+
+        let resampler = Fft::<f32>::new(
+            orig_sr as usize,
+            target_sr as usize,
+            chunk_size,
+            1,
+            1,
+            FixedSync::Input,
+        ).map_err(|e| SonaraError::Fft(format!("stream resampler init: {e}")))?;
+
+        Ok(Self {
+            resampler,
+            buffer: Vec::new(),
+            orig_sr,
+            target_sr,
+        })
+    }
+
+    /// Process a chunk of input samples, returning resampled output.
+    ///
+    /// Internally buffers samples until enough are available for the
+    /// resampler's required input size. May return an empty Vec if
+    /// not enough samples have been accumulated yet.
+    pub fn process_chunk(&mut self, chunk: &[Float]) -> Result<Vec<Float>> {
+        use rubato::Resampler;
+        use rubato::audioadapter_buffers::direct::SequentialSliceOfVecs;
+
+        self.buffer.extend_from_slice(chunk);
+
+        let needed = self.resampler.input_frames_next();
+        if self.buffer.len() < needed {
+            return Ok(Vec::new());
+        }
+
+        let mut output = Vec::new();
+
+        while self.buffer.len() >= needed {
+            let input_data = vec![self.buffer[..needed].to_vec()];
+            let input = SequentialSliceOfVecs::new(&input_data, 1, needed)
+                .map_err(|e| SonaraError::Fft(format!("stream resample input: {e}")))?;
+
+            let out_len = self.resampler.output_frames_next();
+            let mut output_data = vec![vec![0.0f32; out_len]];
+            let mut out_buf = SequentialSliceOfVecs::new_mut(&mut output_data, 1, out_len)
+                .map_err(|e| SonaraError::Fft(format!("stream resample output: {e}")))?;
+
+            let (_n_in, n_out) = self.resampler
+                .process_into_buffer(&input, &mut out_buf, None)
+                .map_err(|e| SonaraError::Fft(format!("stream resample: {e}")))?;
+
+            output.extend_from_slice(&output_data[0][..n_out]);
+            self.buffer.drain(..needed);
+        }
+
+        Ok(output)
+    }
+
+    /// Flush remaining samples through the resampler.
+    ///
+    /// Call this after the last chunk to drain the internal buffers.
+    pub fn flush(&mut self) -> Result<Vec<Float>> {
+        use rubato::Resampler;
+        use rubato::audioadapter_buffers::direct::SequentialSliceOfVecs;
+
+        if self.buffer.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Pad to the required input size
+        let needed = self.resampler.input_frames_next();
+        self.buffer.resize(needed, 0.0);
+
+        let input_data = vec![self.buffer.clone()];
+        let input = SequentialSliceOfVecs::new(&input_data, 1, needed)
+            .map_err(|e| SonaraError::Fft(format!("stream resample flush input: {e}")))?;
+
+        let out_len = self.resampler.output_frames_next();
+        let mut output_data = vec![vec![0.0f32; out_len]];
+        let mut out_buf = SequentialSliceOfVecs::new_mut(&mut output_data, 1, out_len)
+            .map_err(|e| SonaraError::Fft(format!("stream resample flush output: {e}")))?;
+
+        let (_n_in, n_out) = self.resampler
+            .process_into_buffer(&input, &mut out_buf, None)
+            .map_err(|e| SonaraError::Fft(format!("stream resample flush: {e}")))?;
+
+        self.buffer.clear();
+        output_data[0].truncate(n_out);
+        Ok(output_data.into_iter().next().unwrap())
+    }
+}
+
+/// Stream audio with per-block resampling.
+///
+/// Loads the file at its native sample rate, then chunks and resamples
+/// each block independently. This reduces peak memory vs resampling the
+/// entire file at once.
+pub fn stream_with_resample(
+    path: &Path,
+    block_length: usize,
+    frame_length: usize,
+    hop_length: usize,
+    target_sr: u32,
+    mono: bool,
+) -> Result<Vec<AudioBuffer>> {
+    // Load at native rate (sr=0 means preserve native)
+    let (y_native, native_sr) = load(path, 0, mono, 0.0, 0.0)?;
+
+    if native_sr == target_sr {
+        // No resampling needed, just chunk
+        return stream_from_signal(y_native.view(), block_length, frame_length, hop_length);
+    }
+
+    // Create stateful resampler
+    let mut resampler = StreamResampler::new(native_sr, target_sr, 1024)?;
+    let step = block_length * hop_length;
+
+    // Resample in chunks of `step` samples (native rate)
+    let native_step = (step as f64 * native_sr as f64 / target_sr as f64).ceil() as usize;
+    let mut resampled = Vec::new();
+    let mut pos = 0;
+
+    while pos < y_native.len() {
+        let end = (pos + native_step).min(y_native.len());
+        let chunk = &y_native.as_slice().unwrap()[pos..end];
+        let out = resampler.process_chunk(chunk)?;
+        resampled.extend_from_slice(&out);
+        pos = end;
+    }
+
+    // Flush remaining
+    let flush = resampler.flush()?;
+    resampled.extend_from_slice(&flush);
+
+    let y_resampled = Array1::from_vec(resampled);
+    stream_from_signal(y_resampled.view(), block_length, frame_length, hop_length)
+}
+
+/// Helper: chunk a signal into stream blocks.
+fn stream_from_signal(
+    y: ArrayView1<Float>,
+    block_length: usize,
+    frame_length: usize,
+    hop_length: usize,
+) -> Result<Vec<AudioBuffer>> {
     let step = block_length * hop_length;
     let mut blocks = Vec::new();
     let mut pos = 0;

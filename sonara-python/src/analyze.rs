@@ -31,6 +31,12 @@ fn result_to_dict<'py>(py: Python<'py>, r: &rs::TrackAnalysis) -> PyResult<Bound
     if let Some(ref v) = r.mfcc_mean { d.set_item("mfcc_mean", v.clone())?; }
     if let Some(ref v) = r.chroma_mean { d.set_item("chroma_mean", v.clone())?; }
 
+    // Rhythm (playlist/full modes)
+    if let Some(ref v) = r.tempo_curve { d.set_item("tempo_curve", v.clone())?; }
+    if let Some(v) = r.tempo_variability { d.set_item("tempo_variability", v)?; }
+    if let Some(ref v) = r.time_signature { d.set_item("time_signature", v.as_str())?; }
+    if let Some(v) = r.time_signature_confidence { d.set_item("time_signature_confidence", v)?; }
+
     // Perceptual (playlist/full modes)
     if let Some(v) = r.energy { d.set_item("energy", v)?; }
     if let Some(v) = r.danceability { d.set_item("danceability", v)?; }

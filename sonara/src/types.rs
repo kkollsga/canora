@@ -5,7 +5,7 @@ use num_complex::Complex;
 /// Default floating-point type for all internal computation.
 /// Using f32 for performance: halves memory bandwidth, matches native decode
 /// format (Symphonia decodes to f32), and is standard for audio analysis
-/// (aubio, essentia, Core Audio all default to f32).
+/// (standard for audio processing libraries and Core Audio).
 pub type Float = f32;
 
 /// Complex float used for spectral representations.
@@ -50,7 +50,7 @@ pub type ArrayDynFloatView<'a> = ArrayViewD<'a, Float>;
 pub type ArrayDynComplex = ArrayD<ComplexFloat>;
 
 // ---- Window specification ----
-/// How a window function is specified — mirrors librosa's `_WindowSpec`.
+/// How a window function is specified.
 #[derive(Debug, Clone)]
 pub enum WindowSpec {
     /// Named window: "hann", "hamming", "blackman", etc.
@@ -62,7 +62,7 @@ pub enum WindowSpec {
 }
 
 // ---- Pad mode ----
-/// Padding modes matching numpy's `np.pad` (subset used by librosa).
+/// Padding modes matching numpy's `np.pad` (subset used in audio analysis).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PadMode {
     Constant,

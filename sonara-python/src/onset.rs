@@ -27,8 +27,25 @@ pub fn py_onset_strength<'py>(
     Ok(result.into_pyarray(py))
 }
 
+#[pyfunction]
+#[pyo3(name = "onset_strength_method", signature = (y, *, sr=22050, hop_length=512, method="spectral_flux"))]
+pub fn py_onset_strength_method<'py>(
+    py: Python<'py>,
+    y: PyReadonlyArray1<'py, f32>,
+    sr: u32, hop_length: usize, method: &str,
+) -> PyResult<Bound<'py, PyArray1<f32>>> {
+    let m = rs::OnsetMethod::from_str(method).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Invalid onset method '{}'. Valid: 'spectral_flux', 'energy', 'phase', 'complex'", method
+        ))
+    })?;
+    let result = rs::onset_strength_method(y.as_array(), sr, hop_length, m).into_pyresult()?;
+    Ok(result.into_pyarray(py))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_onset_detect, m)?)?;
     m.add_function(wrap_pyfunction!(py_onset_strength, m)?)?;
+    m.add_function(wrap_pyfunction!(py_onset_strength_method, m)?)?;
     Ok(())
 }
