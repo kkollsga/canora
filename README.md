@@ -1,15 +1,15 @@
-# canora
+# sonara
 
 **High-performance audio analysis library for Python, written in Rust.**
 
 A drop-in replacement for [librosa](https://librosa.org/) with significantly faster feature extraction and batch analysis.
 
-> *canora* (Latin): melodious, tuneful — from *canor*, "song"
+> *sonara* — from Latin *sonare*, "to sound, to resonate"
 
 ## Installation
 
 ```bash
-pip install canora
+pip install sonara
 ```
 
 Requires Python 3.9+. Pre-built wheels available for Linux, macOS (Intel & Apple Silicon), and Windows.
@@ -17,8 +17,8 @@ Requires Python 3.9+. Pre-built wheels available for Linux, macOS (Intel & Apple
 Build from source:
 
 ```bash
-git clone https://github.com/kkollsga/canora.git
-cd canora
+git clone https://github.com/kkollsga/sonara.git
+cd sonara
 pip install maturin
 maturin develop --release
 ```
@@ -26,28 +26,28 @@ maturin develop --release
 ## Quick Start
 
 ```python
-import canora
+import sonara
 import numpy as np
 
 # Load audio
-y, sr = canora.load("track.mp3", sr=22050)
+y, sr = sonara.load("track.mp3", sr=22050)
 
 # STFT
-D = canora.stft(y)
-S_db = canora.amplitude_to_db(np.abs(D))
+D = sonara.stft(y)
+S_db = sonara.amplitude_to_db(np.abs(D))
 
 # Mel spectrogram + MFCC
-mel = canora.melspectrogram(y=y, sr=22050.0)
-mfcc = canora.mfcc(y=y, sr=22050.0, n_mfcc=13)
+mel = sonara.melspectrogram(y=y, sr=22050.0)
+mfcc = sonara.mfcc(y=y, sr=22050.0, n_mfcc=13)
 
 # Beat tracking
-tempo, beats = canora.beat_track(y=y, sr=22050)
+tempo, beats = sonara.beat_track(y=y, sr=22050)
 
 # Chroma
-chroma = canora.chroma_stft(y=y, sr=22050.0)
+chroma = sonara.chroma_stft(y=y, sr=22050.0)
 
 # Pitch estimation
-f0, voiced, prob = canora.pyin(y, fmin=65.0, fmax=2093.0, sr=22050)
+f0, voiced, prob = sonara.pyin(y, fmin=65.0, fmax=2093.0, sr=22050)
 ```
 
 ## Batch Analysis
@@ -55,10 +55,10 @@ f0, voiced, prob = canora.pyin(y, fmin=65.0, fmax=2093.0, sr=22050)
 Analyze multiple files in parallel using all CPU cores:
 
 ```python
-import canora
+import sonara
 
 files = ["track1.mp3", "track2.mp3", "track3.mp3"]
-results = canora.analyze_batch(files, sr=22050)
+results = sonara.analyze_batch(files, sr=22050)
 
 for r in results:
     print(f"BPM: {r['bpm']:.0f}, Duration: {r['duration_sec']:.0f}s, "
@@ -68,7 +68,7 @@ for r in results:
 Single file with all features:
 
 ```python
-result = canora.analyze_file("track.mp3", sr=22050)
+result = sonara.analyze_file("track.mp3", sr=22050)
 # Returns dict with: bpm, beats, onset_frames, rms_mean, rms_max,
 # dynamic_range_db, spectral_centroid_mean, zero_crossing_rate, onset_density
 ```
@@ -76,13 +76,13 @@ result = canora.analyze_file("track.mp3", sr=22050)
 ## Display
 
 ```python
-import canora
-import canora.display as display
+import sonara
+import sonara.display as display
 import matplotlib.pyplot as plt
 
-y, sr = canora.load("track.mp3", sr=22050)
-mel = canora.melspectrogram(y=y, sr=22050.0)
-mel_db = canora.power_to_db(mel)
+y, sr = sonara.load("track.mp3", sr=22050)
+mel = sonara.melspectrogram(y=y, sr=22050.0)
+mel_db = sonara.power_to_db(mel)
 
 fig, ax = plt.subplots()
 display.specshow(mel_db, x_axis='time', y_axis='mel', sr=22050, ax=ax)
@@ -107,7 +107,7 @@ Performance varies by platform and signal length. Gains come from compiled Rust,
 
 ## API Compatibility
 
-canora implements 92 of librosa's top-level functions with matching signatures:
+sonara implements 92 of librosa's top-level functions with matching signatures:
 
 **Core Audio:** `load`, `stft`, `istft`, `resample`, `to_mono`, `tone`, `chirp`, `clicks`
 
@@ -127,10 +127,10 @@ canora implements 92 of librosa's top-level functions with matching signatures:
 
 ## Architecture
 
-canora is a two-crate Rust workspace:
+sonara is a two-crate Rust workspace:
 
-- **`canora`** — Pure Rust core library (~10,000 LOC, 214 functions)
-- **`canora-python`** — PyO3 bindings (~1,000 LOC)
+- **`sonara`** — Pure Rust core library (~10,000 LOC, 214 functions)
+- **`sonara-python`** — PyO3 bindings (~1,000 LOC)
 
 Key optimizations:
 

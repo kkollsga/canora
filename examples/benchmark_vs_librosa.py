@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Full accuracy + performance benchmark: canora vs librosa, all phases."""
+"""Full accuracy + performance benchmark: sonara vs librosa, all phases."""
 
 import time
 import subprocess
@@ -43,20 +43,20 @@ def bench(name, fn_c, fn_l, atol=1e-6, rtol=1e-5, check=True):
     lm = np.median(lt) / 1e6
     cm = np.median(ct) / 1e6
     sp = lm / max(cm, 0.001)
-    return {"name": name, "accuracy": acc, "librosa_ms": round(lm, 3), "canora_ms": round(cm, 3), "speedup": round(sp, 1)}
+    return {"name": name, "accuracy": acc, "librosa_ms": round(lm, 3), "sonara_ms": round(cm, 3), "speedup": round(sp, 1)}
 
 def print_table(title, results):
     print(f"\n{'='*90}")
     print(f"  {title}")
     print(f"{'='*90}")
-    print(f"| {'Function':<40} | {'Accuracy':<20} | {'librosa':>9} | {'canora':>9} | {'Speed':>7} |")
+    print(f"| {'Function':<40} | {'Accuracy':<20} | {'librosa':>9} | {'sonara':>9} | {'Speed':>7} |")
     print(f"|{'-'*42}|{'-'*22}|{'-'*11}|{'-'*11}|{'-'*9}|")
     for r in results:
         a = r['accuracy'][:20] if len(r['accuracy']) > 20 else r['accuracy']
-        print(f"| {r['name']:<40} | {a:<20} | {r['librosa_ms']:>7.3f}ms | {r['canora_ms']:>7.3f}ms | {r['speedup']:>5.1f}x |")
+        print(f"| {r['name']:<40} | {a:<20} | {r['librosa_ms']:>7.3f}ms | {r['sonara_ms']:>7.3f}ms | {r['speedup']:>5.1f}x |")
 
 if __name__ == "__main__":
-    import canora
+    import sonara
     import librosa
 
     np.random.seed(42)
@@ -64,18 +64,18 @@ if __name__ == "__main__":
     y5 = np.random.randn(110250).astype(np.float64)  # 5s
 
     print("="*90)
-    print("  CANORA vs LIBROSA — Full Accuracy & Performance Report")
+    print("  SONARA vs LIBROSA — Full Accuracy & Performance Report")
     print("="*90)
 
     # ============================================================
     # PHASE 1: Conversions
     # ============================================================
     r1 = []
-    r1.append(bench("hz_to_mel(440)", lambda: canora.hz_to_mel(440.0), lambda: librosa.hz_to_mel(440.0), atol=1e-4))
-    r1.append(bench("fft_frequencies(2048)", lambda: canora.fft_frequencies(sr=22050.0, n_fft=2048), lambda: librosa.fft_frequencies(sr=22050, n_fft=2048)))
-    r1.append(bench("mel_frequencies(128)", lambda: canora.mel_frequencies(n_mels=128), lambda: librosa.mel_frequencies(n_mels=128), atol=1e-4))
-    r1.append(bench("note_to_hz('A4')", lambda: canora.note_to_hz("A4"), lambda: librosa.note_to_hz("A4")))
-    r1.append(bench("midi_to_hz(69)", lambda: canora.midi_to_hz(69.0), lambda: librosa.midi_to_hz(69)))
+    r1.append(bench("hz_to_mel(440)", lambda: sonara.hz_to_mel(440.0), lambda: librosa.hz_to_mel(440.0), atol=1e-4))
+    r1.append(bench("fft_frequencies(2048)", lambda: sonara.fft_frequencies(sr=22050.0, n_fft=2048), lambda: librosa.fft_frequencies(sr=22050, n_fft=2048)))
+    r1.append(bench("mel_frequencies(128)", lambda: sonara.mel_frequencies(n_mels=128), lambda: librosa.mel_frequencies(n_mels=128), atol=1e-4))
+    r1.append(bench("note_to_hz('A4')", lambda: sonara.note_to_hz("A4"), lambda: librosa.note_to_hz("A4")))
+    r1.append(bench("midi_to_hz(69)", lambda: sonara.midi_to_hz(69.0), lambda: librosa.midi_to_hz(69)))
     print_table("Phase 1: Conversions", r1)
 
     # ============================================================
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # ============================================================
     r2 = []
     r2.append(bench("mel filterbank (128 mels)",
-        lambda: canora.mel(sr=22050.0, n_fft=2048, n_mels=128),
+        lambda: sonara.mel(sr=22050.0, n_fft=2048, n_mels=128),
         lambda: librosa.filters.mel(sr=22050, n_fft=2048, n_mels=128).astype(np.float64),
         atol=1e-4))
     print_table("Phase 2: Filters", r2)
@@ -93,23 +93,23 @@ if __name__ == "__main__":
     # ============================================================
     r3 = []
     r3.append(bench("stft 1s (n_fft=2048)",
-        lambda: canora.stft(y1, n_fft=2048),
+        lambda: sonara.stft(y1, n_fft=2048),
         lambda: librosa.stft(y1, n_fft=2048),
         atol=1e-8))
     r3.append(bench("stft 5s (n_fft=2048)",
-        lambda: canora.stft(y5, n_fft=2048),
+        lambda: sonara.stft(y5, n_fft=2048),
         lambda: librosa.stft(y5, n_fft=2048),
         check=False))
 
-    S1 = canora.stft(y1, n_fft=2048)
+    S1 = sonara.stft(y1, n_fft=2048)
     r3.append(bench("istft 1s",
-        lambda: canora.istft(S1, length=22050),
+        lambda: sonara.istft(S1, length=22050),
         lambda: librosa.istft(librosa.stft(y1, n_fft=2048), length=22050),
         atol=1e-4))
 
     S_pow = np.abs(librosa.stft(y1, n_fft=2048)).astype(np.float64)**2
     r3.append(bench("power_to_db",
-        lambda: canora.power_to_db(S_pow),
+        lambda: sonara.power_to_db(S_pow),
         lambda: librosa.power_to_db(S_pow),
         atol=1e-4))
     print_table("Phase 3: STFT & Spectrum", r3)
@@ -120,41 +120,41 @@ if __name__ == "__main__":
     r6 = []
     # melspectrogram
     r6.append(bench("melspectrogram 1s",
-        lambda: canora.melspectrogram(y=y1, sr=22050.0),
+        lambda: sonara.melspectrogram(y=y1, sr=22050.0),
         lambda: librosa.feature.melspectrogram(y=y1, sr=22050).astype(np.float64),
         atol=1e-2, rtol=0.1))
 
     r6.append(bench("melspectrogram 5s",
-        lambda: canora.melspectrogram(y=y5, sr=22050.0),
+        lambda: sonara.melspectrogram(y=y5, sr=22050.0),
         lambda: librosa.feature.melspectrogram(y=y5, sr=22050).astype(np.float64),
         check=False))
 
     # mfcc
     r6.append(bench("mfcc 1s (20 coeffs)",
-        lambda: canora.mfcc(y=y1, sr=22050.0, n_mfcc=20),
+        lambda: sonara.mfcc(y=y1, sr=22050.0, n_mfcc=20),
         lambda: librosa.feature.mfcc(y=y1, sr=22050, n_mfcc=20).astype(np.float64),
         atol=5.0, rtol=0.5))  # MFCC values can differ due to DCT/log implementation
 
     r6.append(bench("mfcc 5s (20 coeffs)",
-        lambda: canora.mfcc(y=y5, sr=22050.0, n_mfcc=20),
+        lambda: sonara.mfcc(y=y5, sr=22050.0, n_mfcc=20),
         lambda: librosa.feature.mfcc(y=y5, sr=22050, n_mfcc=20).astype(np.float64),
         check=False))
 
     # chroma
     r6.append(bench("chroma_stft 1s",
-        lambda: canora.chroma_stft(y=y1, sr=22050.0),
+        lambda: sonara.chroma_stft(y=y1, sr=22050.0),
         lambda: librosa.feature.chroma_stft(y=y1, sr=22050).astype(np.float64),
         atol=0.5, rtol=0.5))
 
     # spectral centroid
     r6.append(bench("spectral_centroid 1s",
-        lambda: canora.spectral_centroid(y=y1, sr=22050.0),
+        lambda: sonara.spectral_centroid(y=y1, sr=22050.0),
         lambda: librosa.feature.spectral_centroid(y=y1, sr=22050).astype(np.float64),
         atol=500.0, rtol=0.3))
 
     # rms
     r6.append(bench("rms 1s",
-        lambda: canora.rms(y=y1),
+        lambda: sonara.rms(y=y1),
         lambda: librosa.feature.rms(y=y1).astype(np.float64),
         atol=0.1, rtol=0.3))
 
@@ -169,8 +169,8 @@ if __name__ == "__main__":
     for mod_name, label, code in [
         ("librosa", "librosa: import+stft+mel+mfcc",
          "import numpy as np; y=np.random.randn(22050); librosa.stft(y); librosa.feature.melspectrogram(y=y, sr=22050); librosa.feature.mfcc(y=y, sr=22050)"),
-        ("canora", "canora: import+stft+mel+mfcc",
-         "import numpy as np; y=np.random.randn(22050).astype(np.float64); canora.stft(y); canora.melspectrogram(y=y, sr=22050.0); canora.mfcc(y=y, sr=22050.0)"),
+        ("sonara", "sonara: import+stft+mel+mfcc",
+         "import numpy as np; y=np.random.randn(22050).astype(np.float64); sonara.stft(y); sonara.melspectrogram(y=y, sr=22050.0); sonara.mfcc(y=y, sr=22050.0)"),
     ]:
         script = f"import time; t0=time.perf_counter_ns(); import {mod_name}; t1=time.perf_counter_ns(); {code}; t2=time.perf_counter_ns(); print(f'{{(t1-t0)/1e6:.1f}},{{(t2-t1)/1e6:.1f}}')"
         times = []

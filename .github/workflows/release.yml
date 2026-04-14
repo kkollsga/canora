@@ -32,7 +32,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           command: build
-          args: --release -m canora-python/Cargo.toml --out dist
+          args: --release -m sonara-python/Cargo.toml --out dist
           manylinux: auto
 
       - uses: actions/upload-artifact@v4
@@ -48,7 +48,7 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: -m canora-python/Cargo.toml --out dist
+          args: -m sonara-python/Cargo.toml --out dist
       - uses: actions/upload-artifact@v4
         with:
           name: sdist
@@ -70,7 +70,7 @@ jobs:
       - name: Verify tag matches Cargo.toml version
         run: |
           TAG="${GITHUB_REF#refs/tags/v}"
-          PKG=$(grep '^version' canora-python/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          PKG=$(grep '^version' sonara-python/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
           if [ "$TAG" != "$PKG" ]; then
             echo "::error::Tag v$TAG does not match Cargo.toml version $PKG"
             exit 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze MP3 files using canora — extract BPM, key features, and audio stats.
+"""Analyze MP3 files using sonara — extract BPM, key features, and audio stats.
 
 Usage:
     python examples/analyze_album.py /path/to/album/folder
@@ -10,7 +10,7 @@ import sys
 import time
 import numpy as np
 
-import canora
+import sonara
 
 if len(sys.argv) < 2:
     print("Usage: python examples/analyze_album.py /path/to/album/folder")
@@ -29,7 +29,7 @@ def analyze_track(filepath):
 
     # Load audio
     try:
-        y, sr = canora.load(filepath, sr=SR)
+        y, sr = sonara.load(filepath, sr=SR)
     except Exception as e:
         stats["error"] = str(e)
         return stats
@@ -39,7 +39,7 @@ def analyze_track(filepath):
 
     # BPM / Beat tracking
     try:
-        tempo, beats = canora.beat_track(y=y, sr=SR)
+        tempo, beats = sonara.beat_track(y=y, sr=SR)
         stats["bpm"] = round(tempo, 1)
         stats["n_beats"] = len(beats)
     except Exception as e:
@@ -48,7 +48,7 @@ def analyze_track(filepath):
 
     # RMS energy (loudness proxy)
     try:
-        rms = canora.rms(y=y)
+        rms = sonara.rms(y=y)
         stats["rms_mean"] = round(float(np.mean(rms)), 4)
         stats["rms_max"] = round(float(np.max(rms)), 4)
         # Dynamic range in dB
@@ -63,14 +63,14 @@ def analyze_track(filepath):
 
     # Spectral centroid (brightness)
     try:
-        cent = canora.spectral_centroid(y=y, sr=float(SR))
+        cent = sonara.spectral_centroid(y=y, sr=float(SR))
         stats["spectral_centroid_mean_hz"] = round(float(np.mean(cent)), 1)
     except Exception as e:
         stats["centroid_error"] = str(e)
 
     # Zero crossing rate (percussiveness proxy)
     try:
-        zc = canora.zero_crossings(y)
+        zc = sonara.zero_crossings(y)
         zcr = float(np.sum(zc.astype(np.float64))) / len(y)
         stats["zero_crossing_rate"] = round(zcr, 4)
     except Exception as e:
@@ -78,14 +78,14 @@ def analyze_track(filepath):
 
     # MFCC summary (timbral fingerprint)
     try:
-        mfcc = canora.mfcc(y=y, sr=float(SR), n_mfcc=13)
+        mfcc = sonara.mfcc(y=y, sr=float(SR), n_mfcc=13)
         stats["mfcc_mean"] = [round(float(x), 2) for x in np.mean(mfcc, axis=1)]
     except Exception as e:
         stats["mfcc_error"] = str(e)
 
     # Onset density (rhythmic activity)
     try:
-        onsets = canora.onset_detect(y=y, sr=SR)
+        onsets = sonara.onset_detect(y=y, sr=SR)
         stats["onset_density_per_sec"] = round(len(onsets) / stats["duration_sec"], 2)
     except Exception as e:
         stats["onset_error"] = str(e)

@@ -3,8 +3,8 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "canora"
-version = "0.1.1"
+name = "sonara"
+version = "0.1.2"
 description = "High-performance drop-in replacement for librosa — audio analysis and music information retrieval in Rust"
 requires-python = ">=3.9"
 license = {file = "LICENSE"}
@@ -43,13 +43,13 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kkollsga/canora"
-Documentation = "https://github.com/kkollsga/canora#readme"
-Repository = "https://github.com/kkollsga/canora"
-Issues = "https://github.com/kkollsga/canora/issues"
+Homepage = "https://github.com/kkollsga/sonara"
+Documentation = "https://github.com/kkollsga/sonara#readme"
+Repository = "https://github.com/kkollsga/sonara"
+Issues = "https://github.com/kkollsga/sonara/issues"
 
 [tool.maturin]
-manifest-path = "canora-python/Cargo.toml"
+manifest-path = "sonara-python/Cargo.toml"
 python-source = "python"
-module-name = "canora._canora"
+module-name = "sonara._sonara"
 features = ["pyo3/extension-module"]
