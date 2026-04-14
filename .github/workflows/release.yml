@@ -2,14 +2,44 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Get package version
+        id: version
+        run: |
+          VERSION=$(python -c "
+          import tomllib, pathlib
+          d = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+          print(d['project']['version'])
+          ")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version exists on PyPI
+        id: check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://pypi.org/pypi/sonara/${{ steps.version.outputs.version }}/json/")
+          if [ "$STATUS" = "200" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
   build-wheels:
-    needs: ci
+    needs: check-version
+    if: needs.check-version.outputs.exists == 'false'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -26,7 +56,6 @@ jobs:
             target: x86_64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v6
-
       - name: Build wheel
         uses: PyO3/maturin-action@v1
         with:
@@ -34,14 +63,14 @@ jobs:
           command: build
           args: --release -m sonara-python/Cargo.toml --out dist
           manylinux: auto
-
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.target }}
           path: dist/*.whl
 
   build-sdist:
-    needs: ci
+    needs: check-version
+    if: needs.check-version.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -54,8 +83,8 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
-  release:
-    needs: [build-wheels, build-sdist]
+  publish:
+    needs: [check-version, build-wheels, build-sdist]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -63,18 +92,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Verify tag matches Cargo.toml version
-        run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          PKG=$(grep '^version' sonara-python/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag v$TAG does not match Cargo.toml version $PKG"
-            exit 1
-          fi
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -87,7 +104,11 @@ jobs:
         with:
           packages-dir: dist/
 
-      - name: Create GitHub release
+      - name: Tag and create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes
+        run: |
+          VERSION="v${{ needs.check-version.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" dist/* --generate-notes
