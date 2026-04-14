@@ -44,7 +44,7 @@ pub fn lfilter(
     let a_norm: Vec<Float> = a.iter().map(|&v| v / a0).collect();
 
     let mut y = Array1::<Float>::zeros(n);
-    let mut state = vec![0.0_f64; order];
+    let mut state = vec![0.0_f32; order];
 
     for i in 0..n {
         // Output: y[i] = b[0]*x[i] + state[0]
@@ -203,7 +203,7 @@ mod tests {
         let x = array![1.0, 2.0, 3.0, 4.0, 5.0];
         let y = lfilter(b.view(), a.view(), x.view()).unwrap();
         for i in 0..x.len() {
-            assert_abs_diff_eq!(y[i], x[i], epsilon = 1e-14);
+            assert_abs_diff_eq!(y[i], x[i], epsilon = 1e-5);
         }
     }
 
@@ -215,10 +215,10 @@ mod tests {
         let a = array![1.0];
         let x = array![1.0, 3.0, 5.0, 7.0];
         let y = lfilter(b.view(), a.view(), x.view()).unwrap();
-        assert_abs_diff_eq!(y[0], 0.5, epsilon = 1e-14); // 0.5*1 + 0.5*0
-        assert_abs_diff_eq!(y[1], 2.0, epsilon = 1e-14); // 0.5*3 + 0.5*1
-        assert_abs_diff_eq!(y[2], 4.0, epsilon = 1e-14); // 0.5*5 + 0.5*3
-        assert_abs_diff_eq!(y[3], 6.0, epsilon = 1e-14); // 0.5*7 + 0.5*5
+        assert_abs_diff_eq!(y[0], 0.5, epsilon = 1e-5); // 0.5*1 + 0.5*0
+        assert_abs_diff_eq!(y[1], 2.0, epsilon = 1e-5); // 0.5*3 + 0.5*1
+        assert_abs_diff_eq!(y[2], 4.0, epsilon = 1e-5); // 0.5*5 + 0.5*3
+        assert_abs_diff_eq!(y[3], 6.0, epsilon = 1e-5); // 0.5*7 + 0.5*5
     }
 
     #[test]
@@ -230,11 +230,11 @@ mod tests {
         let x = array![1.0, 0.0, 0.0, 0.0, 0.0];
         let y = lfilter(b.view(), a.view(), x.view()).unwrap();
         // Impulse response: 1, 0.5, 0.25, 0.125, 0.0625
-        assert_abs_diff_eq!(y[0], 1.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(y[1], 0.5, epsilon = 1e-14);
-        assert_abs_diff_eq!(y[2], 0.25, epsilon = 1e-14);
-        assert_abs_diff_eq!(y[3], 0.125, epsilon = 1e-14);
-        assert_abs_diff_eq!(y[4], 0.0625, epsilon = 1e-14);
+        assert_abs_diff_eq!(y[0], 1.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(y[1], 0.5, epsilon = 1e-5);
+        assert_abs_diff_eq!(y[2], 0.25, epsilon = 1e-5);
+        assert_abs_diff_eq!(y[3], 0.125, epsilon = 1e-5);
+        assert_abs_diff_eq!(y[4], 0.0625, epsilon = 1e-5);
     }
 
     #[test]
@@ -252,7 +252,7 @@ mod tests {
         let a = array![1.0];
         let n = 200;
         let x = Array1::from_shape_fn(n, |i| {
-            (2.0 * std::f64::consts::PI * 5.0 * i as Float / n as Float).sin()
+            (2.0 * std::f32::consts::PI * 5.0 * i as Float / n as Float).sin()
         });
         let y = filtfilt(b.view(), a.view(), x.view()).unwrap();
 

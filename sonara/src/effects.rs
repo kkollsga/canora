@@ -75,7 +75,7 @@ pub fn pitch_shift(
     n_steps: Float,
     bins_per_octave: usize,
 ) -> Result<AudioBuffer> {
-    let rate = 2.0_f64.powf(-n_steps / bins_per_octave as Float);
+    let rate = 2.0_f32.powf(-n_steps / bins_per_octave as Float);
     let stretched = time_stretch(y, rate)?;
     let target_sr = (sr as Float * rate) as u32;
     audio::resample(stretched.view(), target_sr, sr)
@@ -93,12 +93,12 @@ pub fn trim(
     let rms = spectral::rms(Some(y), None, frame_length, hop_length)?;
     let rms_row = rms.row(0);
 
-    let ref_val = rms_row.iter().copied().fold(0.0_f64, Float::max);
+    let ref_val = rms_row.iter().copied().fold(0.0_f32, Float::max);
     if ref_val <= 0.0 {
         return Ok((Array1::zeros(0), (0, 0)));
     }
 
-    let threshold = ref_val * 10.0_f64.powf(-top_db / 20.0);
+    let threshold = ref_val * 10.0_f32.powf(-top_db / 20.0);
 
     // Find first and last frames above threshold
     let first_frame = rms_row.iter().position(|&v| v >= threshold).unwrap_or(0);
@@ -122,12 +122,12 @@ pub fn split(
     let rms = spectral::rms(Some(y), None, frame_length, hop_length)?;
     let rms_row = rms.row(0);
 
-    let ref_val = rms_row.iter().copied().fold(0.0_f64, Float::max);
+    let ref_val = rms_row.iter().copied().fold(0.0_f32, Float::max);
     if ref_val <= 0.0 {
         return Ok(vec![]);
     }
 
-    let threshold = ref_val * 10.0_f64.powf(-top_db / 20.0);
+    let threshold = ref_val * 10.0_f32.powf(-top_db / 20.0);
 
     // Find non-silent frames
     let non_silent: Vec<bool> = rms_row.iter().map(|&v| v >= threshold).collect();
@@ -185,7 +185,7 @@ pub fn deemphasis(y: ArrayView1<Float>, coef: Float) -> Result<AudioBuffer> {
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
-    use std::f64::consts::PI;
+    use std::f32::consts::PI;
 
     fn sine(freq: Float, sr: u32, dur: Float) -> Array1<Float> {
         let n = (sr as Float * dur) as usize;
@@ -229,7 +229,7 @@ mod tests {
     fn test_time_stretch_identity() {
         let y = sine(440.0, 22050, 0.5);
         let stretched = time_stretch(y.view(), 1.0).unwrap();
-        assert!((stretched.len() as f64 - y.len() as f64).abs() < 100.0);
+        assert!((stretched.len() as f32 - y.len() as f32).abs() < 100.0);
     }
 
     #[test]

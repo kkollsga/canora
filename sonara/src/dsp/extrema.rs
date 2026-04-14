@@ -105,7 +105,7 @@ mod tests {
     fn test_argrelmax_sine() {
         let n = 1000;
         let x = ndarray::Array1::from_shape_fn(n, |i| {
-            (i as f64 * 2.0 * std::f64::consts::PI / 100.0).sin()
+            (i as f32 * 2.0 * std::f32::consts::PI / 100.0).sin()
         });
         let maxima = argrelmax(x.view(), 1);
         // Sine with period 100 has ~10 peaks in 1000 samples

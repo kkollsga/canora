@@ -116,7 +116,7 @@ pub fn hz_to_mel(freq: Float, htk: bool) -> Float {
 /// Convert mel to Hz.
 pub fn mel_to_hz(mel: Float, htk: bool) -> Float {
     if htk {
-        F_MEL_REF * (10.0_f64.powf(mel / 2595.0) - 1.0)
+        F_MEL_REF * (10.0_f32.powf(mel / 2595.0) - 1.0)
     } else {
         if mel < MEL_BREAK_MEL {
             mel * MEL_LIN_STEP
@@ -150,7 +150,7 @@ pub fn hz_to_midi(freq: Float) -> Float {
 
 /// Convert MIDI note number to Hz.
 pub fn midi_to_hz(midi: Float) -> Float {
-    A4_HZ * 2.0_f64.powf((midi - A4_MIDI) / 12.0)
+    A4_HZ * 2.0_f32.powf((midi - A4_MIDI) / 12.0)
 }
 
 /// Convert Hz to note name string (e.g., "A4", "C#5").
@@ -239,14 +239,14 @@ pub fn note_to_midi(note: &str) -> crate::Result<Float> {
 
 /// Convert Hz to octave number (relative to A4 by default).
 pub fn hz_to_octs(freq: Float, tuning: Float, bins_per_octave: usize) -> Float {
-    let a4_tuned = A4_HZ * 2.0_f64.powf(tuning / bins_per_octave as Float);
+    let a4_tuned = A4_HZ * 2.0_f32.powf(tuning / bins_per_octave as Float);
     (freq / (a4_tuned / 16.0)).log2()
 }
 
 /// Convert octave number to Hz.
 pub fn octs_to_hz(octs: Float, tuning: Float, bins_per_octave: usize) -> Float {
-    let a4_tuned = A4_HZ * 2.0_f64.powf(tuning / bins_per_octave as Float);
-    (a4_tuned / 16.0) * 2.0_f64.powf(octs)
+    let a4_tuned = A4_HZ * 2.0_f32.powf(tuning / bins_per_octave as Float);
+    (a4_tuned / 16.0) * 2.0_f32.powf(octs)
 }
 
 // ============================================================
@@ -260,7 +260,7 @@ pub fn a4_to_tuning(a4: Float, bins_per_octave: usize) -> Float {
 
 /// Convert tuning deviation to A4 frequency.
 pub fn tuning_to_a4(tuning: Float, bins_per_octave: usize) -> Float {
-    A4_HZ * 2.0_f64.powf(tuning / bins_per_octave as Float)
+    A4_HZ * 2.0_f32.powf(tuning / bins_per_octave as Float)
 }
 
 // ============================================================
@@ -289,7 +289,7 @@ pub fn mel_frequencies(n_mels: usize, fmin: Float, fmax: Float, htk: bool) -> Ar
 /// Generate CQT frequencies for `n_bins` bins starting at `fmin`.
 pub fn cqt_frequencies(n_bins: usize, fmin: Float, bins_per_octave: usize) -> Array1<Float> {
     Array1::from_shape_fn(n_bins, |i| {
-        fmin * 2.0_f64.powf(i as Float / bins_per_octave as Float)
+        fmin * 2.0_f32.powf(i as Float / bins_per_octave as Float)
     })
 }
 
@@ -320,10 +320,10 @@ pub fn fourier_tempo_frequencies(sr: Float, win_length: usize, hop_length: usize
 /// A-weighting curve (dB) for a given frequency in Hz.
 pub fn a_weighting(freq: Float) -> Float {
     let f2 = freq * freq;
-    let num = 12194.0_f64.powi(2) * f2 * f2;
-    let denom = (f2 + 20.6_f64.powi(2))
-        * ((f2 + 107.7_f64.powi(2)) * (f2 + 737.9_f64.powi(2))).sqrt()
-        * (f2 + 12194.0_f64.powi(2));
+    let num = 12194.0_f32.powi(2) * f2 * f2;
+    let denom = (f2 + 20.6_f32.powi(2))
+        * ((f2 + 107.7_f32.powi(2)) * (f2 + 737.9_f32.powi(2))).sqrt()
+        * (f2 + 12194.0_f32.powi(2));
     if denom == 0.0 {
         return Float::NEG_INFINITY;
     }
@@ -333,10 +333,10 @@ pub fn a_weighting(freq: Float) -> Float {
 /// B-weighting curve (dB).
 pub fn b_weighting(freq: Float) -> Float {
     let f2 = freq * freq;
-    let num = 12194.0_f64.powi(2) * f2 * freq;
-    let denom = (f2 + 20.6_f64.powi(2))
-        * (f2 + 158.5_f64.powi(2)).sqrt()
-        * (f2 + 12194.0_f64.powi(2));
+    let num = 12194.0_f32.powi(2) * f2 * freq;
+    let denom = (f2 + 20.6_f32.powi(2))
+        * (f2 + 158.5_f32.powi(2)).sqrt()
+        * (f2 + 12194.0_f32.powi(2));
     if denom == 0.0 {
         return Float::NEG_INFINITY;
     }
@@ -346,8 +346,8 @@ pub fn b_weighting(freq: Float) -> Float {
 /// C-weighting curve (dB).
 pub fn c_weighting(freq: Float) -> Float {
     let f2 = freq * freq;
-    let num = 12194.0_f64.powi(2) * f2;
-    let denom = (f2 + 20.6_f64.powi(2)) * (f2 + 12194.0_f64.powi(2));
+    let num = 12194.0_f32.powi(2) * f2;
+    let denom = (f2 + 20.6_f32.powi(2)) * (f2 + 12194.0_f32.powi(2));
     if denom == 0.0 {
         return Float::NEG_INFINITY;
     }
@@ -514,14 +514,14 @@ mod tests {
     fn test_hz_to_mel_htk() {
         // 440 Hz → 549.64 mel (HTK)
         let mel = hz_to_mel(440.0, true);
-        assert_abs_diff_eq!(mel, 2595.0 * (1.0 + 440.0_f64 / 700.0).log10(), epsilon = 1e-8);
+        assert_abs_diff_eq!(mel, 2595.0 * (1.0 + 440.0_f32 / 700.0).log10(), epsilon = 1e-4);
     }
 
     #[test]
     fn test_hz_to_mel_slaney_below_break() {
         // Below 1000 Hz: linear mapping
         let mel = hz_to_mel(500.0, false);
-        assert_abs_diff_eq!(mel, 500.0 / MEL_LIN_STEP, epsilon = 1e-8);
+        assert_abs_diff_eq!(mel, 500.0 / MEL_LIN_STEP, epsilon = 1e-4);
     }
 
     #[test]
@@ -530,7 +530,7 @@ mod tests {
             for htk in [true, false] {
                 let mel = hz_to_mel(freq, htk);
                 let recovered = mel_to_hz(mel, htk);
-                assert_abs_diff_eq!(freq, recovered, epsilon = 1e-8);
+                assert_abs_diff_eq!(freq, recovered, epsilon = 0.5);
             }
         }
     }
@@ -539,12 +539,12 @@ mod tests {
 
     #[test]
     fn test_hz_to_midi_a4() {
-        assert_abs_diff_eq!(hz_to_midi(440.0), 69.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(hz_to_midi(440.0), 69.0, epsilon = 1e-5);
     }
 
     #[test]
     fn test_midi_to_hz_a4() {
-        assert_abs_diff_eq!(midi_to_hz(69.0), 440.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(midi_to_hz(69.0), 440.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -571,7 +571,7 @@ mod tests {
     #[test]
     fn test_note_to_hz_sharp() {
         let hz = note_to_hz("C#4").unwrap();
-        let expected = 440.0 * 2.0_f64.powf(-8.0 / 12.0); // C#4 = MIDI 61
+        let expected = 440.0 * 2.0_f32.powf(-8.0 / 12.0); // C#4 = MIDI 61
         assert_abs_diff_eq!(hz, expected, epsilon = 0.01);
     }
 
@@ -595,8 +595,8 @@ mod tests {
     #[test]
     fn test_frames_to_time() {
         let times = frames_to_time(&[0, 1, 2], 22050.0, 512);
-        assert_abs_diff_eq!(times[0], 0.0, epsilon = 1e-10);
-        assert_abs_diff_eq!(times[1], 512.0 / 22050.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(times[0], 0.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(times[1], 512.0 / 22050.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -613,7 +613,7 @@ mod tests {
     fn test_fft_frequencies() {
         let freqs = fft_frequencies(22050.0, 2048);
         assert_eq!(freqs.len(), 1025);
-        assert_abs_diff_eq!(freqs[0], 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(freqs[0], 0.0, epsilon = 1e-5);
         assert_abs_diff_eq!(freqs[1024], 11025.0, epsilon = 1e-6);
     }
 
@@ -636,7 +636,7 @@ mod tests {
         assert_eq!(freqs.len(), 84);
         assert_abs_diff_eq!(freqs[0], 32.70, epsilon = 1e-6);
         // 84 bins = 7 octaves → last freq ≈ fmin * 2^7
-        assert_abs_diff_eq!(freqs[83], 32.70 * 2.0_f64.powf(83.0 / 12.0), epsilon = 0.1);
+        assert_abs_diff_eq!(freqs[83], 32.70 * 2.0_f32.powf(83.0 / 12.0), epsilon = 0.1);
     }
 
     // ---- Weighting ----
@@ -650,8 +650,8 @@ mod tests {
 
     #[test]
     fn test_z_weighting() {
-        assert_abs_diff_eq!(z_weighting(1000.0), 0.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(z_weighting(100.0), 0.0, epsilon = 1e-14);
+        assert_abs_diff_eq!(z_weighting(1000.0), 0.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(z_weighting(100.0), 0.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -668,7 +668,7 @@ mod tests {
     #[test]
     fn test_a4_tuning_standard() {
         let tuning = a4_to_tuning(440.0, 12);
-        assert_abs_diff_eq!(tuning, 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(tuning, 0.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -676,7 +676,7 @@ mod tests {
         let a4 = 442.0;
         let tuning = a4_to_tuning(a4, 12);
         let recovered = tuning_to_a4(tuning, 12);
-        assert_abs_diff_eq!(a4, recovered, epsilon = 1e-10);
+        assert_abs_diff_eq!(a4, recovered, epsilon = 1e-5);
     }
 
     // ---- samples_like / times_like ----
@@ -690,7 +690,7 @@ mod tests {
     #[test]
     fn test_times_like() {
         let t = times_like(3, 22050.0, 512);
-        assert_abs_diff_eq!(t[0], 0.0, epsilon = 1e-10);
-        assert_abs_diff_eq!(t[1], 512.0 / 22050.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(t[0], 0.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(t[1], 512.0 / 22050.0, epsilon = 1e-5);
     }
 }

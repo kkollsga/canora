@@ -3,13 +3,16 @@ use num_complex::Complex;
 
 // ---- Scalar precision ----
 /// Default floating-point type for all internal computation.
-pub type Float = f64;
+/// Using f32 for performance: halves memory bandwidth, matches native decode
+/// format (Symphonia decodes to f32), and is standard for audio analysis
+/// (aubio, essentia, Core Audio all default to f32).
+pub type Float = f32;
 
 /// Complex float used for spectral representations.
-pub type ComplexFloat = Complex<f64>;
+pub type ComplexFloat = Complex<f32>;
 
 // ---- Audio domain ----
-/// Mono audio signal: 1-D array of f64 samples in [-1.0, 1.0].
+/// Mono audio signal: 1-D array of f32 samples in [-1.0, 1.0].
 pub type AudioBuffer = Array1<Float>;
 
 /// Borrowed view of a mono audio signal.

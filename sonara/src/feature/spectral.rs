@@ -8,7 +8,7 @@
 //! intermediate allocations. Spectral moments (centroid, bandwidth)
 //! computed in a single pass over frequency bins per frame.
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 use ndarray::{s, Array1, Array2, ArrayView1, ArrayView2};
 
@@ -121,9 +121,9 @@ fn melspectrogram_fused(
 
     // Process frames — sequential here for cache locality of mel output.
     // The inner FFT is the bottleneck, not the mel projection.
-    let mut fft_in = vec![0.0_f64; n_fft];
+    let mut fft_in = vec![0.0_f32; n_fft];
     let mut fft_out = vec![num_complex::Complex::new(0.0, 0.0); n_bins];
-    let mut power_col = vec![0.0_f64; n_bins];
+    let mut power_col = vec![0.0_f32; n_bins];
 
     for col in 0..n_frames {
         let start = col * hop_length;
@@ -243,7 +243,7 @@ pub fn chroma_stft(
             chroma[(c, t)] = sum;
         }
         // L-inf normalize column
-        let max_val = chroma.column(t).iter().copied().fold(0.0_f64, Float::max);
+        let max_val = chroma.column(t).iter().copied().fold(0.0_f32, Float::max);
         if max_val > 0.0 {
             chroma.column_mut(t).mapv_inplace(|v| v / max_val);
         }
@@ -760,7 +760,7 @@ mod tests {
         // RMS of sine = 1/sqrt(2) ≈ 0.707
         let mid = r.ncols() / 2;
         assert!(
-            (r[(0, mid)] - 1.0 / 2.0_f64.sqrt()).abs() < 0.05,
+            (r[(0, mid)] - 1.0 / 2.0_f32.sqrt()).abs() < 0.05,
             "RMS expected ~0.707, got {}", r[(0, mid)]
         );
     }

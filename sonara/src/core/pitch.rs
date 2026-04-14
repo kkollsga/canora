@@ -2,7 +2,7 @@
 //!
 //! Mirrors librosa.core.pitch — yin, pyin, estimate_tuning, pitch_tuning, piptrack.
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 use ndarray::{s, Array1, Array2, ArrayView1};
 
@@ -184,7 +184,7 @@ pub fn pyin(
         let n_troughs = trough_idx.len();
 
         // Compute probability for each trough using beta prior + Boltzmann weighting
-        let mut trough_probs = vec![0.0_f64; n_troughs];
+        let mut trough_probs = vec![0.0_f32; n_troughs];
 
         for k in 0..n_thresholds {
             let thresh = thresholds[k + 1];
@@ -269,7 +269,7 @@ pub fn pyin(
     }
 
     // Viterbi in log-space
-    let tiny = 1e-300_f64;
+    let tiny = 1e-300_f32;
     let log_obs = obs_probs.mapv(|v| v.max(tiny).ln());
     let log_trans = transition.mapv(|v| v.max(tiny).ln());
     let log_init = Array1::from_elem(ns, (1.0 / ns as Float).ln());
@@ -278,7 +278,7 @@ pub fn pyin(
 
     // Decode states to f0
     let freqs: Vec<Float> = (0..n_pitch_bins)
-        .map(|i| fmin * 2.0_f64.powf(i as Float / (12.0 * n_bins_per_semitone as Float)))
+        .map(|i| fmin * 2.0_f32.powf(i as Float / (12.0 * n_bins_per_semitone as Float)))
         .collect();
 
     let mut f0 = Array1::<Float>::from_elem(n_frames, Float::NAN);
@@ -305,7 +305,7 @@ fn beta_inc(x: Float, a: Float, b: Float) -> Float {
     let lbeta = ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b);
     let front = (x.ln() * a + (1.0 - x).ln() * b - lbeta).exp() / a;
 
-    let mut c = 1.0_f64;
+    let mut c = 1.0_f32;
     let mut d = 1.0 - (a + b) * x / (a + 1.0);
     if d.abs() < 1e-30 { d = 1e-30; }
     d = 1.0 / d;
@@ -585,7 +585,7 @@ mod tests {
         // pYIN should return arrays of the correct length
         assert!(f0.len() > 0);
         // Voiced probability should have some non-zero values for a pure tone
-        let max_prob = voiced_prob.iter().copied().fold(0.0_f64, Float::max);
+        let max_prob = voiced_prob.iter().copied().fold(0.0_f32, Float::max);
         assert!(max_prob > 0.0, "some voiced probability should be non-zero for a pure tone");
 
         // Voiced f0 values should be near 440
@@ -630,7 +630,7 @@ mod tests {
     #[test]
     fn test_pitch_tuning_empty() {
         let tuning = pitch_tuning(&[], None, None).unwrap();
-        assert_abs_diff_eq!(tuning, 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(tuning, 0.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -671,7 +671,7 @@ mod tests {
         // The implementation returns 1.0 when the running sum is 0 (division guard).
         let frame = Array1::from_elem(256, 1.0);
         let cmndf = cumulative_mean_normalized_difference(frame.view(), 128);
-        assert_abs_diff_eq!(cmndf[0], 1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(cmndf[0], 1.0, epsilon = 1e-5);
         // All values should be finite
         for tau in 1..cmndf.len() {
             assert!(cmndf[tau].is_finite());

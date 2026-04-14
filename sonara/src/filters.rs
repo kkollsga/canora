@@ -143,7 +143,7 @@ pub fn constant_q_lengths(
     filter_scale: Float,
     window: &str,
 ) -> Result<Array1<Float>> {
-    let q = filter_scale / (2.0_f64.powf(1.0 / bins_per_octave as Float) - 1.0);
+    let q = filter_scale / (2.0_f32.powf(1.0 / bins_per_octave as Float) - 1.0);
     let freqs = convert::cqt_frequencies(n_bins, fmin, bins_per_octave);
 
     let bw = window_bandwidth_by_name(window);
@@ -257,7 +257,7 @@ pub fn cq_to_chroma(
 pub fn mr_frequencies(tuning: Float) -> (Array1<Float>, Array1<Float>) {
     let a4 = convert::tuning_to_a4(tuning, 12);
     let n_bins = 84; // 7 octaves
-    let fmin = a4 * 2.0_f64.powf(-4.75); // ~C1
+    let fmin = a4 * 2.0_f32.powf(-4.75); // ~C1
 
     let freqs = convert::cqt_frequencies(n_bins, fmin, 12);
     let sample_rates = freqs.mapv(|f| (f * 8.0).max(1000.0)); // heuristic
@@ -296,8 +296,8 @@ pub fn semitone_filterbank(
 
     for i in 0..n_bands {
         let f_center = freqs[i];
-        let f_lower = f_center / 2.0_f64.powf(1.0 / 24.0);
-        let f_upper = f_center * 2.0_f64.powf(1.0 / 24.0);
+        let f_lower = f_center / 2.0_f32.powf(1.0 / 24.0);
+        let f_upper = f_center * 2.0_f32.powf(1.0 / 24.0);
 
         for j in 0..n_bins {
             let f = fft_freqs[j];
@@ -340,7 +340,7 @@ mod tests {
             let nonzero: Vec<Float> = row.iter().copied().filter(|&v| v > 0.0).collect();
             if nonzero.len() >= 3 {
                 // Find peak
-                let max_val = nonzero.iter().copied().fold(0.0_f64, Float::max);
+                let max_val = nonzero.iter().copied().fold(0.0_f32, Float::max);
                 let peak_idx = nonzero.iter().position(|&v| v == max_val).unwrap();
                 // Values before peak should be ascending
                 for j in 1..peak_idx {
@@ -387,7 +387,7 @@ mod tests {
         for j in 1..fb.ncols() {
             let col_sum: Float = fb.column(j).sum();
             if col_sum > 0.0 {
-                assert_abs_diff_eq!(col_sum, 1.0, epsilon = 1e-10);
+                assert_abs_diff_eq!(col_sum, 1.0, epsilon = 1e-5);
             }
         }
     }
@@ -426,7 +426,7 @@ mod tests {
         let end = wss.len() - n_fft;
         let mid_val = wss[start + hop]; // reference value
         for i in start..end {
-            assert_abs_diff_eq!(wss[i], mid_val, epsilon = 1e-10);
+            assert_abs_diff_eq!(wss[i], mid_val, epsilon = 1e-5);
         }
     }
 
@@ -435,10 +435,10 @@ mod tests {
         let filt = diagonal_filter(5, 3);
         assert_eq!(filt.shape(), &[5, 5]);
         // Center diagonal should have value 1/3
-        assert_abs_diff_eq!(filt[(2, 2)], 1.0 / 3.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(filt[(2, 2)], 1.0 / 3.0, epsilon = 1e-5);
         // Neighbors should also have value
-        assert_abs_diff_eq!(filt[(2, 1)], 1.0 / 3.0, epsilon = 1e-10);
-        assert_abs_diff_eq!(filt[(2, 3)], 1.0 / 3.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(filt[(2, 1)], 1.0 / 3.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(filt[(2, 3)], 1.0 / 3.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn test_window_bandwidth_known() {
         assert_abs_diff_eq!(window_bandwidth("hann", 1024), 1.5018, epsilon = 1e-4);
-        assert_abs_diff_eq!(window_bandwidth("boxcar", 1024), 1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(window_bandwidth("boxcar", 1024), 1.0, epsilon = 1e-5);
     }
 
     #[test]

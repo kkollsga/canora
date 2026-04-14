@@ -27,7 +27,7 @@ pub fn interval_frequencies(
         } else {
             1.0
         };
-        fmin * 2.0_f64.powi(octave as i32) * interval
+        fmin * 2.0_f32.powi(octave as i32) * interval
     })
 }
 
@@ -46,7 +46,7 @@ pub fn pythagorean_intervals(bins_per_octave: usize) -> Array1<Float> {
         };
 
         // Ratio: (3/2)^fifths, folded to [1, 2)
-        let mut ratio = (3.0 / 2.0_f64).powi(fifths);
+        let mut ratio = (3.0 / 2.0_f32).powi(fifths);
         while ratio >= 2.0 {
             ratio /= 2.0;
         }
@@ -147,7 +147,7 @@ mod tests {
         let intervals = pythagorean_intervals(12);
         assert_eq!(intervals.len(), 12);
         // First should be 1.0 (unison)
-        assert_abs_diff_eq!(intervals[0], 1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(intervals[0], 1.0, epsilon = 1e-5);
         // All should be in [1, 2)
         for &v in intervals.iter() {
             assert!(v >= 1.0 && v < 2.0);
@@ -175,8 +175,8 @@ mod tests {
         let intervals = vec![1.0, 9.0 / 8.0, 5.0 / 4.0, 4.0 / 3.0, 3.0 / 2.0];
         let freqs = interval_frequencies(10, 100.0, &intervals, 5);
         assert_eq!(freqs.len(), 10);
-        assert_abs_diff_eq!(freqs[0], 100.0, epsilon = 1e-10);
-        assert_abs_diff_eq!(freqs[4], 150.0, epsilon = 1e-10); // 100 * 3/2
-        assert_abs_diff_eq!(freqs[5], 200.0, epsilon = 1e-10); // 100 * 2 * 1
+        assert_abs_diff_eq!(freqs[0], 100.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(freqs[4], 150.0, epsilon = 1e-5); // 100 * 3/2
+        assert_abs_diff_eq!(freqs[5], 200.0, epsilon = 1e-5); // 100 * 2 * 1
     }
 }

@@ -166,11 +166,18 @@ fn beat_track_dp(local_score: ArrayView1<Float>, frames_per_beat: usize, tightne
     let fpb = frames_per_beat;
     let log_fpb = (fpb as Float).ln();
 
-    let mut cumscore = vec![0.0_f64; n];
+    // Pre-compute ln() lookup table to avoid transcendental calls in the inner loop.
+    // Intervals range from fpb/2 to 2*fpb, so we need ln(1) through ln(2*fpb).
+    let max_interval = 2 * fpb + 1;
+    let ln_table: Vec<Float> = (0..=max_interval)
+        .map(|i| if i == 0 { 0.0 } else { (i as Float).ln() })
+        .collect();
+
+    let mut cumscore = vec![0.0_f32; n];
     let mut backlink = vec![0usize; n];
 
     // Forward pass
-    let score_thresh = 0.01 * local_score.iter().copied().fold(0.0_f64, Float::max);
+    let score_thresh = 0.01 * local_score.iter().copied().fold(0.0_f32, Float::max);
 
     for i in 0..n {
         // Search backwards for best predecessor
@@ -181,8 +188,9 @@ fn beat_track_dp(local_score: ArrayView1<Float>, frames_per_beat: usize, tightne
         let mut best_j = 0usize;
 
         for j in search_start..search_end.min(i) {
-            let interval = (i - j) as Float;
-            let penalty = tightness * (interval.ln() - log_fpb).powi(2);
+            let interval = i - j;
+            let ln_interval = if interval <= max_interval { ln_table[interval] } else { (interval as Float).ln() };
+            let penalty = tightness * (ln_interval - log_fpb).powi(2);
             let score = cumscore[j] - penalty;
             if score > best_score {
                 best_score = score;
@@ -228,7 +236,7 @@ fn trim_beats(local_score: ArrayView1<Float>, beats: &[usize]) -> Vec<usize> {
         return vec![];
     }
 
-    let threshold = 0.01 * local_score.iter().copied().fold(0.0_f64, Float::max);
+    let threshold = 0.01 * local_score.iter().copied().fold(0.0_f32, Float::max);
 
     let start = beats.iter().position(|&b| {
         b < local_score.len() && local_score[b] >= threshold
@@ -294,7 +302,7 @@ pub fn plp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::f64::consts::PI;
+    use std::f32::consts::PI;
 
     fn click_train(sr: u32, dur: Float, bpm: Float) -> Array1<Float> {
         let n = (sr as Float * dur) as usize;

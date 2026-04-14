@@ -33,7 +33,7 @@ pub fn py_analyze_file<'py>(py: Python<'py>, path: &str, sr: u32) -> PyResult<Bo
 #[pyo3(name = "analyze_signal", signature = (y, *, sr=22050))]
 pub fn py_analyze_signal<'py>(
     py: Python<'py>,
-    y: PyReadonlyArray1<'py, f64>,
+    y: PyReadonlyArray1<'py, f32>,
     sr: u32,
 ) -> PyResult<Bound<'py, PyDict>> {
     let result = rs::analyze_signal(y.as_array(), sr).into_pyresult()?;

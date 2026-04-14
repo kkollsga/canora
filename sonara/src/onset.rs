@@ -39,7 +39,7 @@ pub fn onset_detect(
     }
 
     // Normalize to [0, 1]
-    let max_val = oenv.iter().copied().fold(0.0_f64, Float::max);
+    let max_val = oenv.iter().copied().fold(0.0_f32, Float::max);
     let oenv_norm = if max_val > 0.0 {
         oenv.mapv(|v| v / max_val)
     } else {
@@ -173,7 +173,7 @@ pub fn onset_backtrack(events: &[usize], energy: ArrayView1<Float>) -> Vec<usize
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::f64::consts::PI;
+    use std::f32::consts::PI;
 
     fn sine(freq: Float, sr: u32, dur: Float) -> Array1<Float> {
         let n = (sr as Float * dur) as usize;

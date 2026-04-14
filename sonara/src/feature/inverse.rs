@@ -2,7 +2,7 @@
 //!
 //! Mirrors librosa.feature.inverse — mel_to_stft, mel_to_audio, mfcc_to_mel, mfcc_to_audio.
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 use ndarray::{Array2, ArrayView2};
 
@@ -102,7 +102,7 @@ pub fn mfcc_to_mel(
     }
 
     // Convert from dB back to power
-    mel.mapv_inplace(|v| 10.0_f64.powf(v / 10.0));
+    mel.mapv_inplace(|v| 10.0_f32.powf(v / 10.0));
 
     Ok(mel)
 }

@@ -143,7 +143,7 @@ pub fn max_columns_in_block(n_fft: usize) -> usize {
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
-    use std::f64::consts::PI;
+    use std::f32::consts::PI;
 
     #[test]
     fn test_rfft_sine() {
@@ -182,7 +182,7 @@ mod tests {
         let reconstructed = irfft_alloc(&mut spectrum, n).unwrap();
 
         for (a, b) in original.iter().zip(reconstructed.iter()) {
-            assert_abs_diff_eq!(a, b, epsilon = 1e-10);
+            assert_abs_diff_eq!(a, b, epsilon = 1e-5);
         }
     }
 
@@ -210,7 +210,7 @@ mod tests {
         }
         freq_energy += spectrum[spectrum.len() - 1].norm_sqr();
 
-        assert_abs_diff_eq!(freq_energy / n as Float, time_energy, epsilon = 1e-8);
+        assert_abs_diff_eq!(freq_energy / n as Float, time_energy, epsilon = 1e-1);
     }
 
     #[test]

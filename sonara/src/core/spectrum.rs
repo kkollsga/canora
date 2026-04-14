@@ -8,7 +8,7 @@
 //! depends on it. This implementation uses realfft for the FFT and processes
 //! frames in cache-friendly chunks via MAX_MEM_BLOCK.
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 #[cfg(test)]
 use ndarray::Axis;
@@ -116,7 +116,7 @@ pub fn stft(
             .into_par_iter()
             .flat_map_iter(|col| {
                 let start = col * hop_length;
-                let mut fft_in = vec![0.0_f64; n_fft];
+                let mut fft_in = vec![0.0_f32; n_fft];
                 for i in 0..n_fft {
                     fft_in[i] = y_raw[start + i] * win_raw[i];
                 }
@@ -133,7 +133,7 @@ pub fn stft(
         }
     } else {
         // Sequential: single buffer pair, no rayon overhead.
-        let mut fft_input = vec![0.0_f64; n_fft];
+        let mut fft_input = vec![0.0_f32; n_fft];
         let mut fft_output = vec![Complex::new(0.0, 0.0); n_bins];
 
         for col in 0..n_frames {
@@ -209,7 +209,7 @@ pub fn stft_power(
             .into_par_iter()
             .flat_map_iter(|col| {
                 let start = col * hop_length;
-                let mut fft_in = vec![0.0_f64; n_fft];
+                let mut fft_in = vec![0.0_f32; n_fft];
                 for i in 0..n_fft {
                     fft_in[i] = y_raw[start + i] * win_raw[i];
                 }
@@ -225,7 +225,7 @@ pub fn stft_power(
             }
         }
     } else {
-        let mut fft_in = vec![0.0_f64; n_fft];
+        let mut fft_in = vec![0.0_f32; n_fft];
         let mut fft_out = vec![Complex::new(0.0, 0.0); n_bins];
 
         for col in 0..n_frames {
@@ -288,7 +288,7 @@ pub fn istft(
                 let mut spectrum: Vec<Complex<Float>> = (0..n_bins)
                     .map(|i| stft_matrix[(i, col)])
                     .collect();
-                let mut output = vec![0.0_f64; n_fft];
+                let mut output = vec![0.0_f32; n_fft];
                 fft::irfft(&mut spectrum, &mut output).expect("IFFT failed");
                 // Apply scale and window in one pass
                 for i in 0..n_fft {
@@ -300,13 +300,13 @@ pub fn istft(
     } else {
         let mut frames = Vec::with_capacity(n_frames);
         let mut spectrum = vec![Complex::new(0.0, 0.0); n_bins];
-        let mut output = vec![0.0_f64; n_fft];
+        let mut output = vec![0.0_f32; n_fft];
         for col in 0..n_frames {
             for i in 0..n_bins {
                 spectrum[i] = stft_matrix[(i, col)];
             }
             fft::irfft(&mut spectrum, &mut output)?;
-            let mut frame = vec![0.0_f64; n_fft];
+            let mut frame = vec![0.0_f32; n_fft];
             for i in 0..n_fft {
                 frame[i] = output[i] * scale * win_raw[i];
             }
@@ -328,7 +328,7 @@ pub fn istft(
     }
 
     // Step 3: Normalize by window sum (avoid divide by zero)
-    let tiny = utils::tiny(1.0_f64);
+    let tiny = utils::tiny(1.0_f32);
     let y_raw = y.as_slice_mut().unwrap();
     let ws_raw = window_sum.as_slice().unwrap();
     for i in 0..expected_len {
@@ -410,7 +410,7 @@ pub fn power_to_db(
 
 /// Convert dB back to power.
 pub fn db_to_power(s_db: ArrayView2<Float>, ref_power: Float) -> Spectrogram {
-    s_db.mapv(|v| ref_power * 10.0_f64.powf(v / 10.0))
+    s_db.mapv(|v| ref_power * 10.0_f32.powf(v / 10.0))
 }
 
 /// Convert an amplitude spectrogram to dB.
@@ -440,7 +440,7 @@ pub fn amplitude_to_db(
 
 /// Convert dB back to amplitude.
 pub fn db_to_amplitude(s_db: ArrayView2<Float>, ref_amplitude: Float) -> Spectrogram {
-    s_db.mapv(|v| ref_amplitude * 10.0_f64.powf(v / 20.0))
+    s_db.mapv(|v| ref_amplitude * 10.0_f32.powf(v / 20.0))
 }
 
 /// Convenience: power_to_db for 1-D arrays.
@@ -742,7 +742,7 @@ pub fn iirt(
 
     // Simple bandpass: for each filter, compute energy in a band around the target frequency
     for (fi, &freq) in freqs.iter().enumerate() {
-        let bandwidth = freq * (2.0_f64.powf(1.0 / 24.0) - 1.0); // quarter-tone bandwidth
+        let bandwidth = freq * (2.0_f32.powf(1.0 / 24.0) - 1.0); // quarter-tone bandwidth
         let _f_lo = (freq - bandwidth).max(0.0);
         let _f_hi = freq + bandwidth;
 
@@ -795,7 +795,7 @@ pub fn fmt(
     let n_out = n_fmt.unwrap_or(n);
 
     // Log-resample the input
-    let mut resampled = vec![0.0_f64; n_out];
+    let mut resampled = vec![0.0_f32; n_out];
     for i in 0..n_out {
         let t = t_min * ((i as Float / n_out as Float) * (n as Float / t_min).ln()).exp();
         let idx = t.floor() as usize;
@@ -978,7 +978,7 @@ mod tests {
 
         // DC bin should be the largest
         let dc_mag = avg_mag[0];
-        let max_other = avg_mag.slice(ndarray::s![1..]).iter().copied().fold(0.0_f64, Float::max);
+        let max_other = avg_mag.slice(ndarray::s![1..]).iter().copied().fold(0.0_f32, Float::max);
         assert!(dc_mag > max_other, "DC bin should have the largest average magnitude, dc={dc_mag}, max_other={max_other}");
     }
 
@@ -1040,8 +1040,8 @@ mod tests {
         // mag * phase should reconstruct s
         for ((i, j), &orig) in s.indexed_iter() {
             let reconstructed = mag[(i, j)] * phase[(i, j)];
-            assert_abs_diff_eq!(orig.re, reconstructed.re, epsilon = 1e-10);
-            assert_abs_diff_eq!(orig.im, reconstructed.im, epsilon = 1e-10);
+            assert_abs_diff_eq!(orig.re, reconstructed.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(orig.im, reconstructed.im, epsilon = 1e-5);
         }
     }
 
@@ -1052,7 +1052,7 @@ mod tests {
         let s = Array2::from_elem((2, 2), 1.0);
         let db = power_to_db(s.view(), 1.0, 1e-10, None);
         for &v in db.iter() {
-            assert_abs_diff_eq!(v, 0.0, epsilon = 1e-10);
+            assert_abs_diff_eq!(v, 0.0, epsilon = 1e-5);
         }
     }
 
@@ -1071,7 +1071,7 @@ mod tests {
         let db = power_to_db(s.view(), 1.0, 1e-10, None);
         let recovered = db_to_power(db.view(), 1.0);
         for ((i, j), &orig) in s.indexed_iter() {
-            assert_abs_diff_eq!(orig, recovered[(i, j)], epsilon = 1e-8);
+            assert_abs_diff_eq!(orig, recovered[(i, j)], epsilon = 1e-4);
         }
     }
 

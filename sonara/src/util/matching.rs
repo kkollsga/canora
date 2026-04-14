@@ -46,7 +46,7 @@ pub fn match_intervals(
         let a_end = intervals_from[(i, 1)];
 
         let mut best_j = 0;
-        let mut best_jaccard = -1.0_f64;
+        let mut best_jaccard = -1.0_f32;
 
         for j in 0..m {
             let b_start = intervals_to[(j, 0)];
@@ -160,10 +160,10 @@ mod tests {
     #[test]
     fn test_jaccard_overlap() {
         // Full overlap
-        assert_abs_diff_eq!(jaccard_overlap(0.0, 1.0, 0.0, 1.0), 1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(jaccard_overlap(0.0, 1.0, 0.0, 1.0), 1.0, epsilon = 1e-5);
         // No overlap
-        assert_abs_diff_eq!(jaccard_overlap(0.0, 1.0, 2.0, 3.0), 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(jaccard_overlap(0.0, 1.0, 2.0, 3.0), 0.0, epsilon = 1e-5);
         // Half overlap: [0,2] ∩ [1,3] = [1,2] = 1, union = 3
-        assert_abs_diff_eq!(jaccard_overlap(0.0, 2.0, 1.0, 3.0), 1.0 / 3.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(jaccard_overlap(0.0, 2.0, 1.0, 3.0), 1.0 / 3.0, epsilon = 1e-5);
     }
 }

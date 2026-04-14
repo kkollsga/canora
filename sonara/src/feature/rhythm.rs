@@ -3,7 +3,7 @@
 //! Mirrors librosa.feature.rhythm — tempogram, fourier_tempogram, tempo, tempogram_ratio.
 
 #[cfg(test)]
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 use ndarray::{Array1, Array2, ArrayView1, ArrayView2};
 use num_complex::Complex;
 
@@ -61,7 +61,7 @@ pub fn tempogram(
         let acf = audio::autocorrelate(windowed_arr.view(), Some(win_length))?;
 
         // Normalize
-        let max_val = acf.iter().copied().fold(0.0_f64, Float::max).max(1e-10);
+        let max_val = acf.iter().copied().fold(0.0_f32, Float::max).max(1e-10);
         for i in 0..win_length {
             tgram[(i, t)] = acf[i] / max_val;
         }
@@ -104,7 +104,7 @@ pub fn fourier_tempogram(
 
     let mut ftgram = Array2::<ComplexFloat>::zeros((n_bins, n_frames));
 
-    let mut fft_in = vec![0.0_f64; win_length];
+    let mut fft_in = vec![0.0_f32; win_length];
     let mut fft_out = vec![Complex::new(0.0, 0.0); n_bins];
 
     for t in 0..n_frames {

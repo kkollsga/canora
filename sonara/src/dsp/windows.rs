@@ -3,7 +3,7 @@
 //! Implements the standard window functions used in spectral analysis.
 //! These replace scipy.signal.get_window for the subset used by librosa.
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 use ndarray::Array1;
 
@@ -201,31 +201,31 @@ mod tests {
     fn test_hann_symmetry() {
         let w = hann(256, false);
         for i in 0..128 {
-            assert_abs_diff_eq!(w[i], w[255 - i], epsilon = 1e-14);
+            assert_abs_diff_eq!(w[i], w[255 - i], epsilon = 1e-5);
         }
     }
 
     #[test]
     fn test_hann_endpoints() {
         let w = hann(256, false);
-        assert_abs_diff_eq!(w[0], 0.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(w[255], 0.0, epsilon = 1e-14);
+        assert_abs_diff_eq!(w[0], 0.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(w[255], 0.0, epsilon = 1e-5);
     }
 
     #[test]
     fn test_hamming_known_values() {
         // Hamming(5, symmetric): [0.08, 0.54, 1.0, 0.54, 0.08]
         let w = hamming(5, false);
-        assert_abs_diff_eq!(w[0], 0.08, epsilon = 1e-10);
-        assert_abs_diff_eq!(w[2], 1.0, epsilon = 1e-10);
-        assert_abs_diff_eq!(w[4], 0.08, epsilon = 1e-10);
+        assert_abs_diff_eq!(w[0], 0.08, epsilon = 1e-5);
+        assert_abs_diff_eq!(w[2], 1.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(w[4], 0.08, epsilon = 1e-5);
     }
 
     #[test]
     fn test_kaiser_beta_zero_is_rectangular() {
         let w = kaiser(64, 0.0, false);
         for &v in w.iter() {
-            assert_abs_diff_eq!(v, 1.0, epsilon = 1e-10);
+            assert_abs_diff_eq!(v, 1.0, epsilon = 1e-5);
         }
     }
 
@@ -233,7 +233,7 @@ mod tests {
     fn test_boxcar_all_ones() {
         let w = boxcar(100);
         for &v in w.iter() {
-            assert_abs_diff_eq!(v, 1.0, epsilon = 1e-14);
+            assert_abs_diff_eq!(v, 1.0, epsilon = 1e-5);
         }
     }
 
@@ -285,7 +285,7 @@ mod tests {
     fn test_tukey_alpha_zero_is_rectangular() {
         let w = tukey(64, 0.0, false);
         for &v in w.iter() {
-            assert_abs_diff_eq!(v, 1.0, epsilon = 1e-14);
+            assert_abs_diff_eq!(v, 1.0, epsilon = 1e-5);
         }
     }
 
@@ -298,8 +298,8 @@ mod tests {
 
     #[test]
     fn test_single_sample_windows() {
-        assert_abs_diff_eq!(hann(1, true)[0], 1.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(hamming(1, true)[0], 1.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(kaiser(1, 5.0, true)[0], 1.0, epsilon = 1e-14);
+        assert_abs_diff_eq!(hann(1, true)[0], 1.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(hamming(1, true)[0], 1.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(kaiser(1, 5.0, true)[0], 1.0, epsilon = 1e-5);
     }
 }

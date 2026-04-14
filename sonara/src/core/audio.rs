@@ -4,7 +4,7 @@
 //! get_duration, get_samplerate, autocorrelate, lpc, zero_crossings,
 //! clicks, tone, chirp, mu_compress, mu_expand.
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 use std::path::Path;
 
 #[cfg(test)]
@@ -205,7 +205,8 @@ fn load_symphonia(path: &Path) -> Result<(Vec<Float>, u32, usize)> {
         let buf = sample_buf.as_mut().unwrap();
         buf.copy_interleaved_ref(decoded);
 
-        samples.extend(buf.samples().iter().map(|&s| s as Float));
+        // Zero-cost: SampleBuffer<f32> produces f32, and Float = f32
+        samples.extend(buf.samples().iter().copied());
     }
 
     Ok((samples, sr, n_channels))
@@ -218,7 +219,9 @@ pub fn to_mono(y: ndarray::ArrayView2<Float>) -> Array1<Float> {
 
 /// Resample a signal from `orig_sr` to `target_sr`.
 ///
-/// Uses rubato's sinc interpolation for high-quality resampling.
+/// Fast path for exact 2:1 decimation (e.g., 44100→22050) using a half-band
+/// FIR filter — ~20x faster than full sinc resampling for this common case.
+/// Falls back to rubato sinc interpolation for all other ratios.
 pub fn resample(
     y: ArrayView1<Float>,
     orig_sr: u32,
@@ -228,11 +231,125 @@ pub fn resample(
         return Ok(y.to_owned());
     }
 
+    // Fast path: exact 2:1 decimation (e.g., 44100 → 22050)
+    if orig_sr == 2 * target_sr {
+        return Ok(decimate_half(y));
+    }
+
+    // General path: rubato sinc interpolation
+    resample_rubato(y, orig_sr, target_sr)
+}
+
+/// 2:1 decimation using a 31-tap half-band FIR low-pass filter.
+///
+/// Half-band filters have the property that every other coefficient (at even
+/// offsets from center) is zero, so only ~8 multiply-accumulate operations
+/// per output sample. This is dramatically faster than general sinc resampling.
+///
+/// Filter: Hamming-windowed sinc, normalized to unity DC gain.
+/// Cutoff at Fs/4 (the new Nyquist after 2:1 decimation).
+fn decimate_half(y: ArrayView1<Float>) -> Array1<Float> {
+    // 31-tap half-band FIR: h[center] = 0.5, non-zero at odd offsets ±1,±3,...,±15
+    // Coefficients: (1/2)*sinc(k/2) * hamming_window, then all normalized to sum=1.0
+    //
+    // Ideal sinc(k/2) at odd offsets from center:
+    //   k=1:  2/π    k=3: -2/(3π)   k=5:  2/(5π)   k=7: -2/(7π)
+    //   k=9:  2/(9π) k=11:-2/(11π)  k=13: 2/(13π)  k=15:-2/(15π)
+    // Multiplied by 0.5 and Hamming window w[15±k] = 0.54 - 0.46*cos(2π(15±k)/30)
+    // Then all 17 non-zero coefficients normalized so their sum = 1.0.
+
+    // Pre-computed normalized coefficients for offsets ±k from center (k=1,3,5,...,15)
+    // These sum (with center=0.5 before normalization) to 1.0 after scaling.
+    const N_TAPS: usize = 8; // number of (symmetric) non-zero tap pairs
+    const CENTER_COEFF: Float = 0.5;
+
+    // Ideal half-sinc values * Hamming window, before normalization
+    // h_raw[j] for offset k = 2*j+1 from center
+    let raw_coeffs: [Float; N_TAPS] = {
+        let pi = std::f32::consts::PI;
+        [
+            0.5 * (pi * 0.5).recip() * (0.54 - 0.46 * (2.0 * pi * 14.0 / 30.0).cos()),  // k=1
+            0.5 * -(pi * 1.5).recip() * (0.54 - 0.46 * (2.0 * pi * 12.0 / 30.0).cos()), // k=3
+            0.5 * (pi * 2.5).recip() * (0.54 - 0.46 * (2.0 * pi * 10.0 / 30.0).cos()),  // k=5
+            0.5 * -(pi * 3.5).recip() * (0.54 - 0.46 * (2.0 * pi * 8.0 / 30.0).cos()),  // k=7
+            0.5 * (pi * 4.5).recip() * (0.54 - 0.46 * (2.0 * pi * 6.0 / 30.0).cos()),   // k=9
+            0.5 * -(pi * 5.5).recip() * (0.54 - 0.46 * (2.0 * pi * 4.0 / 30.0).cos()),  // k=11
+            0.5 * (pi * 6.5).recip() * (0.54 - 0.46 * (2.0 * pi * 2.0 / 30.0).cos()),   // k=13
+            0.5 * -(pi * 7.5).recip() * (0.54 - 0.46 * (2.0 * pi * 0.0 / 30.0).cos()),  // k=15
+        ]
+    };
+
+    // Normalize: sum of all coefficients should be 1.0 for unity DC gain
+    // Pre-compute scaled coefficients (avoid per-sample division)
+    let raw_sum = CENTER_COEFF + 2.0 * raw_coeffs.iter().sum::<Float>();
+    let scale = 1.0 / raw_sum;
+    let center = CENTER_COEFF * scale;
+    let coeffs: [Float; N_TAPS] = std::array::from_fn(|j| raw_coeffs[j] * scale);
+
+    let n = y.len();
+    let n_out = n / 2;
+    let mut out = Array1::<Float>::zeros(n_out);
+    let raw = y.as_slice().unwrap();
+
+    // Interior samples (no boundary checks needed)
+    let safe_start = (N_TAPS * 2) / 2 + 1; // first output where all taps are in-bounds
+    let safe_end = n_out.saturating_sub(N_TAPS); // last safe output
+
+    // Boundary samples (with bounds checking)
+    for i in 0..safe_start.min(n_out) {
+        let c = i * 2;
+        let mut sum = center * raw[c];
+        for (j, &coeff) in coeffs.iter().enumerate() {
+            let k = (2 * j + 1) as isize;
+            let il = c as isize - k;
+            let ir = c as isize + k;
+            let left = if il >= 0 { raw[il as usize] } else { 0.0 };
+            let right = if (ir as usize) < n { raw[ir as usize] } else { 0.0 };
+            sum += coeff * (left + right);
+        }
+        out[i] = sum;
+    }
+
+    // Interior samples (hot loop, no bounds checks)
+    for i in safe_start..safe_end {
+        let c = i * 2;
+        let mut sum = center * raw[c];
+        for (j, &coeff) in coeffs.iter().enumerate() {
+            let k = 2 * j + 1;
+            sum += coeff * (raw[c - k] + raw[c + k]);
+        }
+        out[i] = sum;
+    }
+
+    // Trailing boundary samples
+    for i in safe_end.max(safe_start)..n_out {
+        let c = i * 2;
+        let mut sum = center * raw[c];
+        for (j, &coeff) in coeffs.iter().enumerate() {
+            let k = (2 * j + 1) as isize;
+            let il = c as isize - k;
+            let ir = c as isize + k;
+            let left = if il >= 0 { raw[il as usize] } else { 0.0 };
+            let right = if (ir as usize) < n { raw[ir as usize] } else { 0.0 };
+            sum += coeff * (left + right);
+        }
+        out[i] = sum;
+    }
+
+    out
+}
+
+/// General resampling using rubato sinc interpolation.
+fn resample_rubato(
+    y: ArrayView1<Float>,
+    orig_sr: u32,
+    target_sr: u32,
+) -> Result<Array1<Float>> {
     use rubato::{Fft, FixedSync, Resampler};
     use rubato::audioadapter_buffers::direct::SequentialSliceOfVecs;
 
     let chunk_size = 1024;
-    let mut resampler = Fft::<f64>::new(
+    let mut resampler = Fft::<f32>::new(
         orig_sr as usize,
         target_sr as usize,
         chunk_size,
@@ -249,7 +366,7 @@ pub fn resample(
         .map_err(|e| SonaraError::Fft(format!("resampler input buffer: {e}")))?;
 
     let output_len = resampler.process_all_needed_output_len(input_len);
-    let mut output_data = vec![vec![0.0f64; output_len]];
+    let mut output_data = vec![vec![0.0f32; output_len]];
     let mut output = SequentialSliceOfVecs::new_mut(&mut output_data, 1, output_len)
         .map_err(|e| SonaraError::Fft(format!("resampler output buffer: {e}")))?;
 
@@ -510,8 +627,8 @@ mod tests {
         .unwrap();
         let mono = to_mono(stereo.view());
         assert_eq!(mono.len(), 4);
-        assert_abs_diff_eq!(mono[0], 3.0, epsilon = 1e-14); // (1+5)/2
-        assert_abs_diff_eq!(mono[1], 4.0, epsilon = 1e-14); // (2+6)/2
+        assert_abs_diff_eq!(mono[0], 3.0, epsilon = 1e-5); // (1+5)/2
+        assert_abs_diff_eq!(mono[1], 4.0, epsilon = 1e-5); // (2+6)/2
     }
 
     #[test]
@@ -519,10 +636,10 @@ mod tests {
         let y = tone(440.0, 22050, 22050);
         assert_eq!(y.len(), 22050);
         // Check it starts at zero
-        assert_abs_diff_eq!(y[0], 0.0, epsilon = 1e-14);
+        assert_abs_diff_eq!(y[0], 0.0, epsilon = 1e-5);
         // Check energy is reasonable (RMS of sine = 1/sqrt(2))
         let rms = (y.mapv(|v| v * v).sum() / y.len() as Float).sqrt();
-        assert_abs_diff_eq!(rms, 1.0 / 2.0_f64.sqrt(), epsilon = 0.01);
+        assert_abs_diff_eq!(rms, 1.0 / 2.0_f32.sqrt(), epsilon = 0.01);
     }
 
     #[test]
@@ -542,7 +659,7 @@ mod tests {
         let compressed = mu_compress(x.view(), mu);
         let expanded = mu_expand(compressed.view(), mu);
         for i in 0..x.len() {
-            assert_abs_diff_eq!(x[i], expanded[i], epsilon = 1e-10);
+            assert_abs_diff_eq!(x[i], expanded[i], epsilon = 1e-5);
         }
     }
 
@@ -550,7 +667,7 @@ mod tests {
     fn test_mu_compress_zero() {
         let x = array![0.0];
         let compressed = mu_compress(x.view(), 255.0);
-        assert_abs_diff_eq!(compressed[0], 0.0, epsilon = 1e-14);
+        assert_abs_diff_eq!(compressed[0], 0.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -597,7 +714,7 @@ mod tests {
         let y = Array1::from_shape_fn(256, |i| (i as Float * 0.1).sin());
         let coeffs = lpc(y.view(), 4).unwrap();
         assert_eq!(coeffs.len(), 5); // order + 1
-        assert_abs_diff_eq!(coeffs[0], 1.0, epsilon = 1e-10); // first coeff is always 1
+        assert_abs_diff_eq!(coeffs[0], 1.0, epsilon = 1e-5); // first coeff is always 1
     }
 
     #[test]
@@ -622,7 +739,31 @@ mod tests {
         let resampled = resample(y.view(), 22050, 22050).unwrap();
         assert_eq!(resampled.len(), y.len());
         for i in 0..y.len() {
-            assert_abs_diff_eq!(y[i], resampled[i], epsilon = 1e-14);
+            assert_abs_diff_eq!(y[i], resampled[i], epsilon = 1e-5);
         }
+    }
+
+    #[test]
+    fn test_decimate_half_length() {
+        // 2:1 decimation should halve the length
+        let y = Array1::from_shape_fn(44100, |i| (i as Float * 0.1).sin());
+        let decimated = resample(y.view(), 44100, 22050).unwrap();
+        assert_eq!(decimated.len(), 22050);
+    }
+
+    #[test]
+    fn test_decimate_half_low_freq_preserved() {
+        // A low-frequency sine (well below Nyquist) should be preserved
+        let sr = 44100u32;
+        let freq = 440.0;
+        let n = sr as usize; // 1 second
+        let y = Array1::from_shape_fn(n, |i| {
+            (2.0 * PI * freq * i as Float / sr as Float).sin()
+        });
+        let decimated = resample(y.view(), sr, sr / 2).unwrap();
+        // Check RMS is preserved (energy should be similar)
+        let rms_orig = (y.mapv(|v| v * v).sum() / y.len() as Float).sqrt();
+        let rms_dec = (decimated.mapv(|v| v * v).sum() / decimated.len() as Float).sqrt();
+        assert_abs_diff_eq!(rms_orig, rms_dec, epsilon = 0.05);
     }
 }

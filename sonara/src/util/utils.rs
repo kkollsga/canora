@@ -63,12 +63,12 @@ pub fn valid_audio(y: ArrayView1<Float>) -> Result<bool> {
 }
 
 /// Check that `x` is a valid positive integer.
-pub fn is_positive_int(x: f64) -> bool {
+pub fn is_positive_int(x: f32) -> bool {
     x > 0.0 && x == x.floor() && x.is_finite()
 }
 
 /// Cast a float to integer, optionally applying a rounding function.
-pub fn valid_int(x: f64, cast: Option<fn(f64) -> f64>) -> Result<i64> {
+pub fn valid_int(x: f32, cast: Option<fn(f32) -> f32>) -> Result<i64> {
     if !x.is_finite() {
         return Err(SonaraError::InvalidParameter {
             param: "x",
@@ -197,7 +197,7 @@ pub fn normalize(
     norm: &str,
     threshold: Option<Float>,
 ) -> Result<Array1<Float>> {
-    let thresh = threshold.unwrap_or_else(|| tiny(1.0f64));
+    let thresh = threshold.unwrap_or_else(|| tiny(1.0f32));
 
     let scale = match norm {
         "l1" => {
@@ -322,7 +322,7 @@ pub fn softmask(
         });
     }
 
-    let eps = tiny(1.0f64);
+    let eps = tiny(1.0f32);
     Ok(Array1::from_shape_fn(x.len(), |i| {
         let xp = x[i].abs().powf(power).max(eps);
         let rp = reference[i].abs().powf(power).max(eps);
@@ -365,14 +365,14 @@ pub fn phasor_scalar(angle: Float) -> Complex<Float> {
 /// Map a real dtype to its complex equivalent (conceptually).
 /// In Rust we just track this as a type-level concern, but this function
 /// documents the mapping f32→c64 for f32 inputs and f64→c128 for f64.
-/// Since we always use f64 internally, this returns "complex128".
+/// Since we use f32 internally, this returns "complex64".
 pub fn dtype_r2c() -> &'static str {
-    "complex128"
+    "complex64"
 }
 
 /// Map a complex dtype to its real equivalent.
 pub fn dtype_c2r() -> &'static str {
-    "float64"
+    "float32"
 }
 
 /// Synchronize (aggregate) a data matrix `data` at specified frame boundaries.
@@ -442,7 +442,7 @@ mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
     use ndarray::array;
-    use std::f64::consts::PI;
+    use std::f32::consts::PI;
 
     #[test]
     fn test_frame_basic() {
@@ -546,15 +546,15 @@ mod tests {
     fn test_normalize_l2() {
         let data = array![3.0, 4.0];
         let normed = normalize(data.view(), "l2", None).unwrap();
-        assert_abs_diff_eq!(normed[0], 0.6, epsilon = 1e-10);
-        assert_abs_diff_eq!(normed[1], 0.8, epsilon = 1e-10);
+        assert_abs_diff_eq!(normed[0], 0.6, epsilon = 1e-5);
+        assert_abs_diff_eq!(normed[1], 0.8, epsilon = 1e-5);
     }
 
     #[test]
     fn test_normalize_max() {
         let data = array![1.0, -3.0, 2.0];
         let normed = normalize(data.view(), "max", None).unwrap();
-        assert_abs_diff_eq!(normed[1], -1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(normed[1], -1.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -562,7 +562,7 @@ mod tests {
         let data = array![1.0, 2.0, 3.0];
         let normed = normalize(data.view(), "l1", None).unwrap();
         let sum: Float = normed.iter().map(|x| x.abs()).sum();
-        assert_abs_diff_eq!(sum, 1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(sum, 1.0, epsilon = 1e-5);
     }
 
     #[test]
@@ -610,15 +610,15 @@ mod tests {
         let x = array![1.0, 2.0, 3.0];
         let mask = softmask(x.view(), x.view(), 1.0).unwrap();
         for &v in mask.iter() {
-            assert_abs_diff_eq!(v, 0.5, epsilon = 1e-10);
+            assert_abs_diff_eq!(v, 0.5, epsilon = 1e-5);
         }
     }
 
     #[test]
     fn test_tiny() {
-        let t: f64 = tiny(1.0f64);
+        let t: f32 = tiny(1.0f32);
         assert!(t > 0.0);
-        assert!(t < 1e-300);
+        assert!(t < 1e-37);
     }
 
     #[test]
@@ -631,19 +631,19 @@ mod tests {
     #[test]
     fn test_abs2_complex() {
         let c = Complex::new(3.0, 4.0);
-        assert_abs_diff_eq!(abs2_complex(c), 25.0, epsilon = 1e-14);
+        assert_abs_diff_eq!(abs2_complex(c), 25.0, epsilon = 1e-5);
     }
 
     #[test]
     fn test_phasor() {
         let angles = array![0.0, PI / 2.0, PI];
         let result = phasor(angles.view());
-        assert_abs_diff_eq!(result[0].re, 1.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(result[0].im, 0.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(result[1].re, 0.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(result[1].im, 1.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(result[2].re, -1.0, epsilon = 1e-14);
-        assert_abs_diff_eq!(result[2].im, 0.0, epsilon = 1e-14);
+        assert_abs_diff_eq!(result[0].re, 1.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(result[0].im, 0.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(result[1].re, 0.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(result[1].im, 1.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(result[2].re, -1.0, epsilon = 1e-5);
+        assert_abs_diff_eq!(result[2].im, 0.0, epsilon = 1e-5);
     }
 
     #[test]

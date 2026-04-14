@@ -10,7 +10,7 @@
 //! pseudo_cqt uses a single FFT for all bins. VQT uses recursive
 //! octave-wise downsampling with per-octave filterbanks.
 
-use std::f64::consts::PI;
+use std::f32::consts::PI;
 
 #[cfg(test)]
 use ndarray::Axis;
@@ -79,7 +79,7 @@ pub fn vqt(
     let n_octaves = (n_bins as Float / bins_per_octave as Float).ceil() as usize;
 
     // Determine Q-factor from filter_scale and spacing
-    let alpha = 2.0_f64.powf(1.0 / bins_per_octave as Float) - 1.0;
+    let alpha = 2.0_f32.powf(1.0 / bins_per_octave as Float) - 1.0;
 
     // Process signal — start with the full signal and current sample rate
     let mut y_current = y.to_owned();
@@ -216,7 +216,7 @@ pub fn icqt(
     let freqs = convert::cqt_frequencies(n_bins, fmin, bins_per_octave);
 
     // Determine FFT size from the longest filter
-    let alpha = 2.0_f64.powf(1.0 / bins_per_octave as Float) - 1.0;
+    let alpha = 2.0_f32.powf(1.0 / bins_per_octave as Float) - 1.0;
     let q = filter_scale / alpha;
     let max_len = (q * sr_f / freqs[0]).ceil() as usize;
     let n_fft = max_len.next_power_of_two().max(2 * hop_length);
@@ -331,7 +331,7 @@ fn cqt_response(
     }).collect();
 
     // FFT size: power of 2, at least max(longest_filter, 2 * hop_length)
-    let max_len = lengths.iter().copied().fold(0.0_f64, Float::max).ceil() as usize;
+    let max_len = lengths.iter().copied().fold(0.0_f32, Float::max).ceil() as usize;
     let n_fft = max_len.max(2 * hop_length).next_power_of_two();
 
     // Build frequency-domain filterbank
@@ -465,7 +465,7 @@ mod tests {
 
         // A4 = 440 Hz, with fmin=32.7 (C1) and 12 bins/octave,
         // bin for 440 Hz ≈ 12 * log2(440/32.7) ≈ 44.8
-        let expected_bin = (12.0 * (440.0 / 32.7_f64).log2()).round() as usize;
+        let expected_bin = (12.0 * (440.0 / 32.7_f32).log2()).round() as usize;
         assert!(
             (max_bin as i64 - expected_bin as i64).unsigned_abs() <= 3,
             "expected bin ~{expected_bin}, got {max_bin}"

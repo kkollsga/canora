@@ -346,7 +346,7 @@ mod tests {
             if i == j { 0.0 } else { 1.0 }
         });
         let (d, path) = dtw(c.view(), None).unwrap();
-        assert_abs_diff_eq!(d[(4, 4)], 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(d[(4, 4)], 0.0, epsilon = 1e-5);
         // Path should be diagonal
         for (i, j) in &path {
             assert_eq!(i, j);
@@ -380,7 +380,7 @@ mod tests {
         let (d2, _) = dtw(ct.view(), None).unwrap();
 
         // Total cost should be the same
-        assert_abs_diff_eq!(d1[(9, 9)], d2[(9, 9)], epsilon = 1e-10);
+        assert_abs_diff_eq!(d1[(9, 9)], d2[(9, 9)], epsilon = 1e-5);
     }
 
     // ---- RQA ----
@@ -393,7 +393,7 @@ mod tests {
         let score = rqa(sim.view()).unwrap();
         // Diagonal should count up: 1, 2, 3, 4, 5
         for i in 0..5 {
-            assert_abs_diff_eq!(score[(i, i)], (i + 1) as Float, epsilon = 1e-10);
+            assert_abs_diff_eq!(score[(i, i)], (i + 1) as Float, epsilon = 1e-5);
         }
     }
 
@@ -405,8 +405,8 @@ mod tests {
         let log_prob = Array2::from_shape_vec(
             (2, 5),
             vec![
-                0.0_f64.ln_1p(), -5.0, 0.0_f64.ln_1p(), -5.0, 0.0_f64.ln_1p(), // state 0 prefers frames 0,2,4
-                -5.0, 0.0_f64.ln_1p(), -5.0, 0.0_f64.ln_1p(), -5.0, // state 1 prefers frames 1,3
+                0.0_f32.ln_1p(), -5.0, 0.0_f32.ln_1p(), -5.0, 0.0_f32.ln_1p(), // state 0 prefers frames 0,2,4
+                -5.0, 0.0_f32.ln_1p(), -5.0, 0.0_f32.ln_1p(), -5.0, // state 1 prefers frames 1,3
             ],
         )
         .unwrap();
@@ -414,7 +414,7 @@ mod tests {
         // Transitions encourage staying
         let log_trans = Array2::from_shape_vec(
             (2, 2),
-            vec![(-0.1_f64).ln_1p(), (-2.0_f64), (-2.0_f64), (-0.1_f64).ln_1p()],
+            vec![(-0.1_f32).ln_1p(), (-2.0_f32), (-2.0_f32), (-0.1_f32).ln_1p()],
         )
         .unwrap();
 
@@ -467,7 +467,7 @@ mod tests {
         let t = transition_uniform(3);
         assert_eq!(t.shape(), &[3, 3]);
         for &v in t.iter() {
-            assert_abs_diff_eq!(v, 1.0 / 3.0, epsilon = 1e-10);
+            assert_abs_diff_eq!(v, 1.0 / 3.0, epsilon = 1e-5);
         }
     }
 
@@ -475,18 +475,18 @@ mod tests {
     fn test_transition_loop() {
         let t = transition_loop(3, 0.9);
         // Diagonal should be 0.9
-        assert_abs_diff_eq!(t[(0, 0)], 0.9, epsilon = 1e-10);
-        assert_abs_diff_eq!(t[(0, 1)], 0.1, epsilon = 1e-10);
-        assert_abs_diff_eq!(t[(0, 2)], 0.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(t[(0, 0)], 0.9, epsilon = 1e-5);
+        assert_abs_diff_eq!(t[(0, 1)], 0.1, epsilon = 1e-5);
+        assert_abs_diff_eq!(t[(0, 2)], 0.0, epsilon = 1e-5);
         // Last state absorbs
-        assert_abs_diff_eq!(t[(2, 2)], 1.0, epsilon = 1e-10);
+        assert_abs_diff_eq!(t[(2, 2)], 1.0, epsilon = 1e-5);
     }
 
     #[test]
     fn test_transition_cycle() {
         let t = transition_cycle(3, 0.8);
-        assert_abs_diff_eq!(t[(2, 0)], 0.2, epsilon = 1e-10); // wraps around
-        assert_abs_diff_eq!(t[(2, 2)], 0.8, epsilon = 1e-10);
+        assert_abs_diff_eq!(t[(2, 0)], 0.2, epsilon = 1e-5); // wraps around
+        assert_abs_diff_eq!(t[(2, 2)], 0.8, epsilon = 1e-5);
     }
 
     #[test]
@@ -500,7 +500,7 @@ mod tests {
         ] {
             for row in mat.rows() {
                 let sum: Float = row.sum();
-                assert_abs_diff_eq!(sum, 1.0, epsilon = 1e-10);
+                assert_abs_diff_eq!(sum, 1.0, epsilon = 1e-5);
             }
         }
     }

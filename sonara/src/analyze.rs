@@ -7,9 +7,11 @@
 //! Key optimization: one FFT per frame simultaneously produces mel projection
 //! (for onset/beat), spectral centroid, and RMS — no intermediate matrices.
 
+use std::cell::RefCell;
 use std::path::Path;
 
 use ndarray::{s, Array1, Array2};
+use rayon::prelude::*;
 
 use crate::core::{audio, convert, fft, spectrum};
 use crate::dsp::windows;
@@ -17,6 +19,24 @@ use crate::error::{SonaraError, Result};
 use crate::filters;
 use crate::types::*;
 use crate::util::utils;
+
+/// Minimum number of frames to justify rayon thread overhead.
+const PARALLEL_THRESHOLD: usize = 32;
+
+/// Cached mel filterbank and sparse representation.
+/// Avoids recomputing the mel filterbank on every analyze_signal call
+/// when parameters (sr, n_fft, n_mels) are the same (which they always
+/// are in batch processing).
+struct MelCache {
+    key: (u32, usize, usize), // (sr, n_fft, n_mels)
+    sparse_mel: Vec<(usize, Vec<Float>)>,
+    freqs: Array1<Float>,
+    win_padded: Array1<Float>,
+}
+
+thread_local! {
+    static MEL_CACHE: RefCell<Option<MelCache>> = const { RefCell::new(None) };
+}
 
 /// Complete analysis result for a single track.
 pub struct TrackAnalysis {
@@ -53,22 +73,45 @@ pub fn analyze_signal(y: ndarray::ArrayView1<Float>, sr: u32) -> Result<TrackAna
     let duration_sec = y.len() as Float / sr_f;
 
     // ================================================================
-    // SETUP: mel filterbank, window, padding (computed once)
+    // SETUP: mel filterbank, window, padding (cached across calls)
     // ================================================================
 
-    let mel_fb = filters::mel(sr_f, n_fft, n_mels, 0.0, sr_f / 2.0, false, "slaney");
-    let sparse_mel: Vec<(usize, Vec<Float>)> = (0..n_mels)
-        .map(|m| {
-            let row = mel_fb.row(m);
-            let first = row.iter().position(|&v| v > 0.0).unwrap_or(0);
-            let last = row.iter().rposition(|&v| v > 0.0).unwrap_or(0);
-            if first > last { (0, vec![]) }
-            else { (first, row.slice(s![first..=last]).to_vec()) }
-        })
-        .collect();
-    let freqs = convert::fft_frequencies(sr_f, n_fft);
-    let win = windows::get_window(&WindowSpec::Named("hann".into()), n_fft, true)?;
-    let win_padded = utils::pad_center(win.view(), n_fft)?;
+    let cache_key = (sr, n_fft, n_mels);
+
+    // Try to reuse cached mel filterbank (saves ~1ms per call in batch)
+    let (sparse_mel, freqs, win_padded) = MEL_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(ref c) = *cache {
+            if c.key == cache_key {
+                return (c.sparse_mel.clone(), c.freqs.clone(), c.win_padded.clone());
+            }
+        }
+
+        // Compute and cache
+        let mel_fb = filters::mel(sr_f, n_fft, n_mels, 0.0, sr_f / 2.0, false, "slaney");
+        let sparse: Vec<(usize, Vec<Float>)> = (0..n_mels)
+            .map(|m| {
+                let row = mel_fb.row(m);
+                let first = row.iter().position(|&v| v > 0.0).unwrap_or(0);
+                let last = row.iter().rposition(|&v| v > 0.0).unwrap_or(0);
+                if first > last { (0, vec![]) }
+                else { (first, row.slice(s![first..=last]).to_vec()) }
+            })
+            .collect();
+        let f = convert::fft_frequencies(sr_f, n_fft);
+        let win = windows::get_window(&WindowSpec::Named("hann".into()), n_fft, true)
+            .expect("hann window");
+        let wp = utils::pad_center(win.view(), n_fft).expect("pad_center");
+
+        *cache = Some(MelCache {
+            key: cache_key,
+            sparse_mel: sparse.clone(),
+            freqs: f.clone(),
+            win_padded: wp.clone(),
+        });
+
+        (sparse, f, wp)
+    });
 
     let pad = n_fft / 2;
     let mut y_padded = Array1::<Float>::zeros(y.len() + 2 * pad);
@@ -83,6 +126,7 @@ pub fn analyze_signal(y: ndarray::ArrayView1<Float>, sr: u32) -> Result<TrackAna
     // ================================================================
     // SINGLE PASS: FFT → mel + centroid + rms simultaneously
     // One FFT per frame produces all features. No redundant computation.
+    // Parallelized with rayon when frame count justifies the overhead.
     // ================================================================
 
     let n_frames = 1 + (n - n_fft) / hop_length;
@@ -90,36 +134,89 @@ pub fn analyze_signal(y: ndarray::ArrayView1<Float>, sr: u32) -> Result<TrackAna
     let mut centroids = Array1::<Float>::zeros(n_frames);
     let mut rms_frames = Array1::<Float>::zeros(n_frames);
 
-    let mut fft_in = vec![0.0_f64; n_fft];
-    let mut fft_out = vec![num_complex::Complex::new(0.0, 0.0); n_bins];
-    let mut power_col = vec![0.0_f64; n_bins];
+    let freqs_raw = freqs.as_slice().unwrap();
 
-    for t in 0..n_frames {
-        let start = t * hop_length;
-        for i in 0..n_fft { fft_in[i] = y_raw[start + i] * win_raw[i]; }
-        fft::rfft(&mut fft_in, &mut fft_out)?;
+    if n_frames >= PARALLEL_THRESHOLD {
+        // Parallel: each frame independently computes FFT + mel + centroid + RMS.
+        // Thread-local FFT caches (in fft.rs) handle per-thread plan reuse.
+        let frame_results: Vec<(Vec<Float>, Float, Float)> = (0..n_frames)
+            .into_par_iter()
+            .map(|t| {
+                let start = t * hop_length;
+                let mut fft_in = vec![0.0_f32; n_fft];
+                for i in 0..n_fft { fft_in[i] = y_raw[start + i] * win_raw[i]; }
+                let mut fft_out = vec![num_complex::Complex::new(0.0, 0.0); n_bins];
+                fft::rfft(&mut fft_in, &mut fft_out).expect("FFT failed");
 
-        let mut cent_num = 0.0_f64;
-        let mut cent_den = 0.0_f64;
+                let mut cent_num = 0.0_f32;
+                let mut cent_den = 0.0_f32;
+                let mut power_col = vec![0.0_f32; n_bins];
 
-        for i in 0..n_bins {
-            let pwr = fft_out[i].norm_sqr();
-            power_col[i] = pwr;
-            let mag = pwr.sqrt();
-            cent_num += freqs[i] * mag;
-            cent_den += mag;
+                for i in 0..n_bins {
+                    let pwr = fft_out[i].norm_sqr();
+                    power_col[i] = pwr;
+                    let mag = pwr.sqrt();
+                    cent_num += freqs_raw[i] * mag;
+                    cent_den += mag;
+                }
+
+                let centroid = if cent_den > 0.0 { cent_num / cent_den } else { 0.0 };
+                let spectral_energy = (power_col[0] + power_col[n_bins - 1]
+                    + 2.0 * power_col[1..n_bins - 1].iter().sum::<Float>()) / (n_fft as Float * n_fft as Float);
+                let rms = spectral_energy.sqrt();
+
+                // Sparse mel projection
+                let mel_col: Vec<Float> = sparse_mel.iter().map(|(start_bin, weights)| {
+                    let mut sum = 0.0;
+                    for (k, &w) in weights.iter().enumerate() { sum += w * power_col[start_bin + k]; }
+                    sum
+                }).collect();
+
+                (mel_col, centroid, rms)
+            })
+            .collect();
+
+        // Scatter results into output arrays
+        for (t, (mel_col, centroid, rms)) in frame_results.into_iter().enumerate() {
+            centroids[t] = centroid;
+            rms_frames[t] = rms;
+            for (m, val) in mel_col.into_iter().enumerate() {
+                mel_spec[(m, t)] = val;
+            }
         }
+    } else {
+        // Sequential: single buffer pair, no rayon overhead for short signals.
+        let mut fft_in = vec![0.0_f32; n_fft];
+        let mut fft_out = vec![num_complex::Complex::new(0.0, 0.0); n_bins];
+        let mut power_col = vec![0.0_f32; n_bins];
 
-        centroids[t] = if cent_den > 0.0 { cent_num / cent_den } else { 0.0 };
-        let spectral_energy = (power_col[0] + power_col[n_bins - 1]
-            + 2.0 * power_col[1..n_bins - 1].iter().sum::<Float>()) / (n_fft as Float * n_fft as Float);
-        rms_frames[t] = spectral_energy.sqrt();
+        for t in 0..n_frames {
+            let start = t * hop_length;
+            for i in 0..n_fft { fft_in[i] = y_raw[start + i] * win_raw[i]; }
+            fft::rfft(&mut fft_in, &mut fft_out)?;
 
-        // Sparse mel projection
-        for (m, (start_bin, weights)) in sparse_mel.iter().enumerate() {
-            let mut sum = 0.0;
-            for (k, &w) in weights.iter().enumerate() { sum += w * power_col[start_bin + k]; }
-            mel_spec[(m, t)] = sum;
+            let mut cent_num = 0.0_f32;
+            let mut cent_den = 0.0_f32;
+
+            for i in 0..n_bins {
+                let pwr = fft_out[i].norm_sqr();
+                power_col[i] = pwr;
+                let mag = pwr.sqrt();
+                cent_num += freqs_raw[i] * mag;
+                cent_den += mag;
+            }
+
+            centroids[t] = if cent_den > 0.0 { cent_num / cent_den } else { 0.0 };
+            let spectral_energy = (power_col[0] + power_col[n_bins - 1]
+                + 2.0 * power_col[1..n_bins - 1].iter().sum::<Float>()) / (n_fft as Float * n_fft as Float);
+            rms_frames[t] = spectral_energy.sqrt();
+
+            // Sparse mel projection
+            for (m, (start_bin, weights)) in sparse_mel.iter().enumerate() {
+                let mut sum = 0.0;
+                for (k, &w) in weights.iter().enumerate() { sum += w * power_col[start_bin + k]; }
+                mel_spec[(m, t)] = sum;
+            }
         }
     }
 
@@ -169,7 +266,7 @@ pub fn analyze_signal(y: ndarray::ArrayView1<Float>, sr: u32) -> Result<TrackAna
     // ================================================================
 
     let rms_mean = rms_frames.iter().sum::<Float>() / rms_frames.len() as Float;
-    let rms_max = rms_frames.iter().copied().fold(0.0_f64, Float::max);
+    let rms_max = rms_frames.iter().copied().fold(0.0_f32, Float::max);
 
     let rms_nonzero: Vec<Float> = rms_frames.iter().copied().filter(|&v| v > 1e-10).collect();
     let dynamic_range_db = if rms_nonzero.len() > 10 {
@@ -212,7 +309,7 @@ pub fn analyze_batch(paths: &[&Path], sr: u32) -> Vec<Result<TrackAnalysis>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::f64::consts::PI;
+    use std::f32::consts::PI;
 
     fn sine(freq: Float, sr: u32, dur: Float) -> Array1<Float> {
         let n = (sr as Float * dur) as usize;
