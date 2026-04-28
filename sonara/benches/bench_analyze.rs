@@ -47,14 +47,14 @@ fn bench_playlist(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_playlist_accurate(c: &mut Criterion) {
-    let mut group = c.benchmark_group("analyze_playlist_accurate");
-    let cfg = analyze::playlist_accurate();
+fn bench_full(c: &mut Criterion) {
+    let mut group = c.benchmark_group("analyze_full");
+    let cfg = analyze::full();
 
     for secs in [1, 5, 30] {
         let signal = generate_signal(22050, secs);
         group.bench_with_input(
-            BenchmarkId::new("playlist+accurate", format!("{}s", secs)),
+            BenchmarkId::new("full", format!("{}s", secs)),
             &signal,
             |b, sig| { b.iter(|| analyze::analyze_signal(sig.view(), 22050, &cfg).unwrap()); },
         );
@@ -72,11 +72,11 @@ fn bench_all_modes(c: &mut Criterion) {
     group.bench_with_input(BenchmarkId::new("mode", "playlist"), &signal,
         |b, sig| { b.iter(|| analyze::analyze_signal(sig.view(), 22050, &analyze::playlist()).unwrap()); });
 
-    group.bench_with_input(BenchmarkId::new("mode", "playlist+accurate"), &signal,
-        |b, sig| { b.iter(|| analyze::analyze_signal(sig.view(), 22050, &analyze::playlist_accurate()).unwrap()); });
+    group.bench_with_input(BenchmarkId::new("mode", "full"), &signal,
+        |b, sig| { b.iter(|| analyze::analyze_signal(sig.view(), 22050, &analyze::full()).unwrap()); });
 
     group.finish();
 }
 
-criterion_group!(benches, bench_compact, bench_playlist, bench_playlist_accurate, bench_all_modes);
+criterion_group!(benches, bench_compact, bench_playlist, bench_full, bench_all_modes);
 criterion_main!(benches);

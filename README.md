@@ -2,54 +2,57 @@
 
 **High-performance audio analysis library for Python, written in Rust.**
 
-High-performance audio feature extraction, batch analysis, and built-in perceptual features for playlist generation.
+Feature extraction, batch analysis, and built-in perceptual features (energy, danceability, valence, key, chords) for playlist generation and music discovery.
 
 > *sonara* — from Latin *sonare*, "to sound, to resonate"
 
-## Installation
+## Quick Start
 
 ```bash
 pip install sonara
 ```
 
-Requires Python 3.9+. Pre-built wheels available for Linux, macOS (Intel & Apple Silicon), and Windows.
-
-Build from source:
-
-```bash
-git clone https://github.com/kkollsga/sonara.git
-cd sonara
-pip install maturin
-maturin develop --release
-```
-
-## Quick Start
+One call gets you 30+ features — tempo, key, chords, energy, mood, timbre — in ~4 ms per 10-second track:
 
 ```python
 import sonara
-import numpy as np
 
-# Load audio
-y, sr = sonara.load("track.mp3", sr=22050)
-
-# STFT
-D = sonara.stft(y)
-S_db = sonara.amplitude_to_db(np.abs(D))
-
-# Mel spectrogram + MFCC
-mel = sonara.melspectrogram(y=y, sr=22050.0)
-mfcc = sonara.mfcc(y=y, sr=22050.0, n_mfcc=13)
-
-# Beat tracking
-tempo, beats = sonara.beat_track(y=y, sr=22050)
-
-# Chroma & HPCP
-chroma = sonara.chroma_stft(y=y, sr=22050.0)
-hpcp = sonara.hpcp(power_spec, freqs)
-
-# Pitch estimation
-f0, voiced, prob = sonara.pyin(y, fmin=65.0, fmax=2093.0, sr=22050)
+r = sonara.analyze_file("track.mp3", mode="playlist")
+r.print()
+# TrackAnalysis  (3:42)
+#
+#   Rhythm
+#     BPM            128.3
+#     Beats          475
+#     Onset density  3.21/sec
+#
+#   Tonal
+#     Key                A minor  (conf 0.81)
+#     Predominant chord  Am
+#     Chord changes      1.42/sec
+#     Dissonance         0.183
+#
+#   Perceptual
+#     Energy         0.78
+#     Danceability   0.71
+#     Valence        0.42
+#     Acousticness   0.12
+#     Loudness       -9.2 LUFS
+#     Dynamic range  12.4 dB
 ```
+
+The result is a plain dict subclass — `r['bpm']`, `**r`, and `json.dumps(r)` all work as expected.
+
+Scale to your whole library in parallel across all CPU cores:
+
+```python
+from pathlib import Path
+
+files = [str(p) for p in Path("~/Music").expanduser().rglob("*.mp3")]
+results = sonara.analyze_batch(files, mode="playlist")
+```
+
+Pre-built wheels for Linux, macOS (Intel & Apple Silicon), and Windows. Requires Python 3.9+.
 
 ## Analysis Pipeline
 
